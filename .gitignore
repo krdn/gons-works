@@ -427,3 +427,27 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# ============================================================
+# gons-works (Bun)
+# ============================================================
+
+# Bun
+bun.lockb
+
+# Env (실제 secrets — .env.example만 커밋)
+.env
+.env.local
+
+# Build artifacts
+dist/
+*.tgz
+
+# State 자체는 git tracked 이지만 .DS_Store 등은 제외
+.DS_Store
+
+# IDE
+.idea/
+
+# Test
+coverage/
