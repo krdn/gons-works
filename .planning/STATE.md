@@ -58,8 +58,9 @@ None yet.
 
 - ~~Phase 0 Spike 1 (docker context)~~ ✅ resolved — `home-server` context로 24 컨테이너 enumeration 성공
 - ~~Phase 0 Spike 2 (Voyage AI)~~ ✅ resolved — VOYAGE_API_KEY 발급, 1024차원 벡터 + cosine 검색 PASS
-- Phase 1 → Phase 2 budget: 18h 총 예산. Phase 0 ~140분(~2.3h) 사용. Phase 1+2 약 15.7h 남음.
+- Phase 1 → Phase 2 budget: 18h 총 예산. Phase 0 ~140분(~2.3h, +20min overage) 사용. Phase 1+2 약 15.7h 남음. ROADMAP overage 조항으로 Phase 1 진행 전 사용자 확인 필요.
 - 환경 변수 함정: 셸의 빈 `ANTHROPIC_API_KEY=`가 Bun .env 자동 로드를 덮어씀 → 라이브 실행 시 `unset ANTHROPIC_API_KEY` 필요. Phase 1 startup script에 친절한 에러 메시지 추가 권장 (FRICTION.md #8)
+- **Phase 1 KB-01 prerequisite**: `state/services.yaml`이 TODO 슬롯(depends_on/volumes/normal_log_pattern/key_log_locations) 비워진 채 commit됨. Phase 1 KB-01 첫 task로 `state/services.yaml.review-checklist.md`에 따라 보강 필요. 보강 안 하면 RAG retrieval 품질이 Spike 2가 보여준 0.32 gap에 미치지 못할 수 있음.
 
 ## Deferred Items
 
