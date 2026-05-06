@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 0 — Bootstrap & Spikes
+**Current focus:** Phase 1 — Read-Only Knowledge Layer (executing)
 
 ## Current Position
 
-Phase: 1 of 3 (Read-Only Knowledge Layer) — Plans ready, ready to execute
+Phase: 1 of 3 (Read-Only Knowledge Layer) — Wave 1 starting (3 plans parallel)
 Plan: 0 of 9
-Status: Phase 1 plan complete — 9 plans across 4 waves, 22/22 REQ-IDs covered, 16/16 D-decisions referenced. 다음 단계: /gsd-execute-phase 1
-Last activity: 2026-05-07 — Phase 1 UI-SPEC + PATTERNS + 9 PLAN.md + LOOP-06 revision
+Status: Phase 1 execute in progress — Wave 1 (01-01, 01-02, 01-03) parallel spawn
+Last activity: 2026-05-07 — /gsd-execute-phase 1 invoked, budget overage acknowledged
 
 Progress: [░░░░░░░░░░] 0% (Phase 1 — plans ready, 0/9 executed)
 Overall: [███░░░░░░░] 33% (1/3 phases — Phase 0 complete)
