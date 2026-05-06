@@ -2,6 +2,7 @@
 
 **Date:** 2026-05-06
 **Status:** PASS
+Status: PASS
 **Vector dimension:** 1024
 **Top-1 idx:** 0 (expected — ais redis doc)
 **Top-1 cosine similarity:** 0.6308

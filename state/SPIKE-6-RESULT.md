@@ -2,6 +2,7 @@
 
 **Date:** 2026-05-06
 **Status:** PASS
+Status: PASS
 **baseURL:** http://192.168.0.5:8317 (cli-proxy-api)
 **Models tested:**
   - readonly: claude-sonnet-4-6 (proxy 가용)

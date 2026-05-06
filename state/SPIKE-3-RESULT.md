@@ -2,6 +2,7 @@
 
 **Date:** 2026-05-06
 **Status:** PASS
+Status: PASS
 **Validation method:** curl (자동화). 브라우저 수동 확인은 사용자 옵션.
 **Chunks received:** 5 (expected)
 **Final event:** received with "Spike 3 PASS"

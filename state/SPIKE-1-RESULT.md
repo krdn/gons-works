@@ -2,6 +2,7 @@
 
 **Date:** 2026-05-06
 **Status:** PASS
+Status: PASS
 **Container count:** 24
 **Containers detected (5 핵심 stack):** news, ais, n8n, open-webui (4/5)
 **Missing:** krdn-fx (CLAUDE.md ⏸ 마커와 일치, 현재 stopped 상태)
