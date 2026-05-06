@@ -35,7 +35,7 @@
 - **k8s / 멀티 호스트** — 192.168.0.5 단일 호스트 우선. 추후 milestone.
 - **메트릭 그래프 / 대시보드 UI** — Beszel/Dozzle이 50% 해결, 직접 만들 50%는 knowledge + state-as-git이지 시각화가 아님.
 - **OAuth / Magic link** — 인증 없음 (1인 사용).
-- **OpenWebUI 경유 LLM** — 첫 milestone는 Claude API 직접 호출. open-webui fallback은 추후 옵션.
+- **OpenWebUI 경유 LLM** — 첫 milestone에서 OpenWebUI를 LLM 백엔드로 두지 않음 (streaming/tool-use 호환성 손실, OpenAI-호환 변환에서 Anthropic native event lossy). 다만 cli-proxy-api(192.168.0.5:8317) 경유는 별개 — Anthropic native protocol을 1:1 보존하므로 D-09로 채택됨.
 
 ## Context
 
@@ -53,7 +53,7 @@
 - **Timeline**: 주말 16시간 첫 출시. Phase 0(1-2h) + Phase 1(8h) + Phase 2(8h) ≤ 18시간. dogfood 메타-목적이 늦어지면 통합 파이프라인 검증도 늦어짐.
 - **Boundary**: 192.168.0.8 (copilot 런타임) — SSH/docker context — 192.168.0.5 (managed services). 코파일럿 자체는 192.168.0.8 로컬 실행.
 - **Security**: PROD 절대 조작 금지 (E2E 테스트는 192.168.0.8 로컬 test docker-compose 사용). state/ git은 fast-forward only.
-- **LLM cost**: Phase 1 read-only는 Sonnet 4.6, Phase 2 propose/apply는 Opus 4.7 default. model 선택은 환경변수로 추출.
+- **LLM cost**: Phase 1 read-only는 Sonnet 4.6, Phase 2 propose/apply는 Opus 4-6 default (4-7은 외부 API 미공개 — D-10). model 선택은 환경변수로 추출. 기본 endpoint는 cli-proxy-api(192.168.0.5:8317) 경유로 Max plan OAuth 재사용 → 토큰 비용 0 (D-09). console.anthropic.com 직접 호출은 fallback path로 보존 (D-11).
 - **Reuse**: Docker contexts (dlocal/dserver), Claude API key, 기존 docker-compose 파일, 192.168.0.5 SSH 인프라 그대로 활용.
 
 ## Key Decisions
@@ -62,7 +62,9 @@
 |----------|-----------|---------|
 | Approach A (Minimal Viable htmx/Bun) 선택 | dogfood 우선 + 16h 주말 사이클로 통합 파이프라인 한 바퀴 검증 | — Pending |
 | state/ 를 본 repo에 두고 별도 submodule 비-사용 | 첫 milestone 단순화, 추후 분리 가능 | — Pending |
-| Claude API 직접 호출 (open-webui 경유 X) | 단순함, 추후 fallback 가능 | — Pending |
+| Claude API 호출 — cli-proxy-api(192.168.0.5:8317) 경유 (D-09) | Max plan OAuth 세션 재사용 → 토큰 비용 0. Anthropic native protocol 1:1 보존, SDK 변경 0. open-webui 경유는 여전히 Out of Scope (streaming/tool-use 호환성 손실) | ✓ Validated 2026-05-06 (chat / tool-use / streaming / model-echo 라이브 검증) |
+| Phase 2 모델 = claude-opus-4-6 (D-10, 4-7 아님) | claude-opus-4-7은 외부 API 미공개 (proxy /v1/models + 외부 SDK 모두에 부재). 가용한 가장 최신 Opus가 4-6. 4-7 출시 시 .env 한 줄 변경 | ✓ Validated 2026-05-06 |
+| Optional fallback (D-11) — ANTHROPIC_FALLBACK_BASE_URL/KEY로 console.anthropic.com 직접 path | 192.168.0.5 자기참조 회피 — proxy 다운 시(=운영 서버 진단 대상일 때) 코파일럿 self-kill 방지 | — Schema 정의됨 (Phase 0 09-PLAN), 통신 검증은 Phase 1 LLM 모듈 단계 |
 | copilot 런타임은 192.168.0.8 로컬 | dserver context로 원격 제어가 가장 단순, SSH tunnel 불필요 | — Pending |
 | 5 핵심 stack(news/ais/n8n/open-webui/krdn-fx)부터 services.yaml 작성 | 10개 전체 손작업은 2-4h 소비 → Phase 1 시간 폭발 | — Pending |
 | Phase 0 신설 — AI가 docker ps로 services.yaml 초안 생성 | Phase 1 시간 예산 보호 + dogfood 메타-목적 강화 (autoplan 권고) | — Pending |

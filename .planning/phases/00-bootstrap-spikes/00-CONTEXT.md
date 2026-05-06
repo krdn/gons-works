@@ -87,6 +87,26 @@ Phase 0은 두 가지를 동시에 처리한다:
 - `services.yaml` 초안 생성 스크립트의 정확한 출력 형태 (services.yaml schema 자체는 Phase 1 KB-01 범위)
 - `.env.example` 작성 여부 (D-05의 `.env` 검증과는 별개로, .env.example template 제공이 dogfood meta에 도움될지)
 
+### LLM endpoint — cli-proxy-api 경유 vs console.anthropic.com 직접
+
+- **D-09:** **cli-proxy-api(192.168.0.5:8317) 경유를 기본 path로 채택.** `ANTHROPIC_BASE_URL=http://192.168.0.5:8317` + `ANTHROPIC_API_KEY=my-proxy-key` 로 `@anthropic-ai/sdk@0.93.0`을 그대로 사용. proxy는 Anthropic native protocol(`/v1/messages`, `x-api-key`, `anthropic-version`)을 1:1 보존하므로 SDK 코드 변경 0. **2026-05-06 라이브 검증 완료** — chat / tool-use(`stop_reason: tool_use`, `tool_use` block, `toolu_*` id 보존) / streaming(`message_start` → `content_block_delta` → `message_stop`) / `model` field echo 4개 모두 PASS.
+  - **Why:** Max plan OAuth 세션을 proxy가 재사용하므로 토큰 비용 0. 16h 주말 예산 + 추가 결제 0원 path 성립. console.anthropic.com 별도 키 발급 불필요.
+  - **How to apply:** `src/env.ts` schema에 `ANTHROPIC_BASE_URL` (default `https://api.anthropic.com`) + `ANTHROPIC_API_KEY` 필수 필드. `src/llm.ts` (Phase 1)에서 `new Anthropic({ apiKey, baseURL })` 패턴. proxy 가용 모델은 `/v1/models` 17개 중 Anthropic 10개 + Gemini 7개. Phase 1/2 사용 모델은 D-10 참조.
+  - **Single-point-of-failure 완화:** D-11 fallback 패턴.
+
+### Phase 2 모델 — claude-opus-4-7 vs claude-opus-4-6
+
+- **D-10:** **Phase 2 propose/apply LLM = `claude-opus-4-6`.** `claude-opus-4-7`은 외부 API에 미공개 (proxy `/v1/models`에도 없고 console.anthropic.com에서도 미보장). 가용한 가장 최신 Opus가 `claude-opus-4-6` (proxy 모델 목록 검증 완료, 2026-05-06).
+  - **Why:** PROJECT.md Constraint 의 `Phase 2 propose/apply는 Opus 4.7 default`는 model-name 가정이었으나 실제 외부 access 가능한 가장 최신 Opus는 4-6. 모델 가용성은 Anthropic이 결정하므로 proxy 측 추가 등록으로 4-7을 가져올 수 없다.
+  - **How to apply:** `.env.example`의 `COPILOT_MODEL_PROPOSE=claude-opus-4-6`. 4-7 외부 공개 시 `.env` 한 줄 변경으로 마이그레이션 (PROJECT.md `LLM model 환경변수 추출` Key Decision의 의도).
+  - **Phase 1 read-only 모델은 변경 없음:** `claude-sonnet-4-6` (proxy 가용 확인됨).
+
+### Self-reference risk 완화 — proxy fallback 패턴
+
+- **D-11:** **Optional fallback baseURL/key를 .env schema에 정의.** proxy(192.168.0.5)가 다운되었을 때 — 즉 운영 서버를 진단해야 하는 바로 그 순간 — 코파일럿 자체가 죽지 않도록 `ANTHROPIC_FALLBACK_BASE_URL` + `ANTHROPIC_FALLBACK_API_KEY`를 schema에 optional 필드로 둔다. `src/llm.ts`에서 primary 호출 실패 시 fallback으로 retry.
+  - **Why:** PROJECT.md Constraint `copilot 런타임은 192.168.0.8 로컬` Key Decision이 차단하려던 self-reference dependency가 cli-proxy-api 경유 시 다시 등장 — 운영 서버를 진단할 도구가 운영 서버에 의존. 16h 예산 안에서 가장 안전한 path는 fallback optional.
+  - **How to apply:** Phase 0은 schema + Spike 6에서 fallback path 동작 단위 테스트만 (autonomous). Phase 1 LOOP-* 작업 시 retry-with-fallback 로직 정식 구현. fallback 미설정 (값 없음) 시 primary 실패가 그대로 user-facing error. fallback API key는 사용자가 옵션으로 console.anthropic.com에서 별도 발급해 .env에 채울 수 있음.
+
 ### Folded Todos
 
 (없음 — `.todos/backlog.json` 미사용)
@@ -168,7 +188,9 @@ Phase 0은 두 가지를 동시에 처리한다:
 ### 사용자 기존 환경 (Phase 0이 활용)
 
 - **Docker contexts (`dlocal`, `dserver`)** — 이미 설정 완료. Spike 1은 `docker context ls`에서 둘 다 보이는지 사전 확인.
-- **Claude API key, Voyage API key** — 사용자가 이미 발급. `.env`에 채우는 것은 Phase 0 task.
+- **cli-proxy-api 컨테이너 (`eceasy/cli-proxy-api:latest`)** — 192.168.0.5:8317 노출. `auths/claude-krdn.net@gmail.com.json` (Claude Code OAuth) + `auths/gemini-krdn.net@gmail.com-*.json` (Gemini OAuth). API key `my-proxy-key`. Anthropic Messages API + OpenAI Chat Completions 호환 (D-09 검증 완료).
+- **Voyage API key** — 사용자가 별도 발급 필요 (proxy 미경유). `dash.voyageai.com/api-keys`에서 새 키 생성. proxy로 우회 path 없음.
+- **(선택) console.anthropic.com 키** — D-11 fallback path용. 미설정 시 proxy 다운 = 코파일럿 다운.
 - **`gon@192.168.0.5` SSH** — 키 기반 인증 완료. `ssh gon@192.168.0.5 docker ps`가 동작하는지 사전 확인 가능.
 
 ### 시간 예산 강조

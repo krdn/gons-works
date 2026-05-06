@@ -3,7 +3,7 @@ plan_id: "00-08"
 phase: 0
 title: "Phase 0 검증 + DOG-01/DOG-02 dogfood 마찰 정리"
 wave: 4
-depends_on: ["00-02", "00-03", "00-04", "00-05", "00-06", "00-07"]
+depends_on: ["00-02", "00-03", "00-04", "00-05", "00-06", "00-07", "00-09"]
 files_modified:
   - "state/PHASE-0-VERIFICATION.md"
   - ".planning/phases/00-bootstrap-spikes/FRICTION.md"
@@ -18,7 +18,7 @@ estimated_minutes: 15
 모든 Phase 0 산출물이 제자리에 있는지 검증하고 (D-02 No partial pass 강제), Phase 0 통과 단일 보고서를 `state/PHASE-0-VERIFICATION.md`로 기록. 동시에 dogfood meta 의무 (DOG-01, DOG-02) — 이 빌드의 모든 단계에서 발견된 통합 파이프라인 마찰을 `FRICTION.md`로 정리해 다음 `~/.claude/plans/gstack-gsd-melodic-raven.md` 개정판 입력으로 사용한다.
 
 **must_haves.truths:**
-- D-02 (CONTEXT.md): No partial pass — 5 spike 모두 green이어야 Phase 1 진행 가능
+- D-02 (CONTEXT.md): No partial pass — 6 spike 모두 green이어야 Phase 1 진행 가능
 - DOG-01: 통합 파이프라인 (`/office-hours` → `/autoplan` → `/gsd-new-project --auto` → `/gsd-execute-phase`)이 정상 흘러갔는지 메타 검증
 - DOG-02: 마찰 메모를 `~/.claude/plans/gstack-gsd-melodic-raven.md` 다음 개정판 입력으로 사용
 - BOOT-01: 5 spike 모두 green
@@ -27,7 +27,7 @@ estimated_minutes: 15
 <must_haves>
 ## Truths
 
-- D-02: 5 spike 결과 (`state/SPIKE-1/2/3-RESULT.md` + Wave 1의 bun:test 결과 + Wave 2의 Spike 5 unit test 결과)가 모두 PASS여야 Phase 1 진행.
+- D-02: 6 spike 결과 (`state/SPIKE-1/2/3/6-RESULT.md` + Wave 1의 bun:test 결과 + Wave 2의 Spike 5 unit test 결과)가 모두 PASS여야 Phase 1 진행.
 - DOG-01: gsd 통합 파이프라인의 첫 검증 사례로서 마찰 기록 필수.
 - DOG-02: FRICTION.md는 dogfood 메타 산출물로서 본 phase의 차별화 가치 중 하나.
 
@@ -63,7 +63,7 @@ bun test
 **Status:** PASS | FAIL — <count> spike(s) failed
 **Time spent:** N minutes (target ≤120 min from ROADMAP.md)
 
-## Spike Results (D-02: No partial pass)
+## Spike Results (D-02: No partial pass — 6/6 green 강제)
 
 | # | Spike | Status | Result file | Verification anchor |
 |---|-------|--------|-------------|---------------------|
@@ -72,6 +72,7 @@ bun test
 | 3 | Hono streamSSE → htmx-ext-sse | PASS / FAIL | state/SPIKE-3-RESULT.md | 5/5 chunks received |
 | 4 | Bun.$ git commit body roundtrip | PASS / FAIL | spikes/04-git-commit.test.ts | bun test 2/2 pass |
 | 5 | Zod v4 z.toJSONSchema | PASS / FAIL | spikes/05-zod-schema.test.ts | bun test 9/9 pass |
+| 6 | Anthropic SDK + cli-proxy-api roundtrip + fallback (D-09/D-10/D-11) | PASS / FAIL | state/SPIKE-6-RESULT.md + spikes/06-proxy-fallback.test.ts | smoke 4/4 pass + bun test 5/5 pass |
 
 ## ROADMAP.md Success Criteria
 
@@ -80,13 +81,14 @@ bun test
 - [ ] 3. streamSSE → htmx-ext-sse 브라우저 text-delta 수신 (Spike 3)
 - [ ] 4. Bun.$ git commit body 포함 commit 기록 (Spike 4)
 - [ ] 5. z.toJSONSchema → Claude input_schema 호환 (Spike 5)
-- [ ] 6. services.yaml 초안 5 핵심 stack 포함 + state/ 첫 commit (BOOT-02 + BOOT-03)
-- [ ] 7. .env 검증 startup guard 동작 (BOOT-04 + BOOT-05)
+- [ ] 6. Anthropic SDK + cli-proxy-api roundtrip 4가지 (chat / tool-use / streaming / model-echo) + claude-opus-4-6 (Spike 6, D-09/D-10) + fallback retry policy 단위 테스트 5/5 (D-11)
+- [ ] 7. services.yaml 초안 5 핵심 stack 포함 + state/ 첫 commit (BOOT-02 + BOOT-03)
+- [ ] 8. .env 검증 startup guard 동작 (BOOT-04 + BOOT-05, ANTHROPIC_BASE_URL 포함 6 키 + 2 optional fallback)
 
 ## Phase 1 Unblocking Decision
 
-5/5 spike PASS → Phase 1 (`/gsd-discuss-phase 1`) 진행 가능.
-4/5 이하 → 실패한 spike의 fallback path 활성화 후 Phase 0 재진입.
+6/6 spike PASS → Phase 1 (`/gsd-discuss-phase 1`) 진행 가능.
+5/6 이하 → 실패한 spike의 fallback path 활성화 후 Phase 0 재진입.
 
 ## Time Budget
 
@@ -100,15 +102,16 @@ bun test
 | 00-06 | 15 min | NN min |
 | 00-07 | 30 min | NN min |
 | 00-08 | 15 min | NN min |
-| **Total** | **165 min** | **NN min** |
+| 00-09 | 25 min | NN min |
+| **Total** | **190 min** | **NN min** |
 
-⚠ ROADMAP.md target ≤120 min. 추정치가 이미 초과(+45 min) — 실제 측정 후 차이가 크면 다음 milestone에 phase 분할 고려.
+⚠ ROADMAP.md target ≤120 min. 추정치가 이미 초과(+70 min, Spike 6 추가로 +25min) — Wave 2의 Spike 1/2/5/6은 모두 wave 1만 끝나면 wall-clock 병렬 가능. 실제 측정 시 cumulative 190 min ≠ wall-clock 190 min일 수 있음. 차이가 크면 다음 milestone에 phase 분할 고려.
 ```
 </action>
 <acceptance_criteria>
 - `state/PHASE-0-VERIFICATION.md` 존재
-- 파일에 5 spike 모두 표시 + 각각 PASS/FAIL 상태 grep 가능
-- 파일에 ROADMAP.md success criteria 7개 모두 grep 가능 (`docker --context`, `Voyage`, `streamSSE`, `git commit`, `toJSONSchema`, `services.yaml`, `.env`)
+- 파일에 6 spike 모두 표시 + 각각 PASS/FAIL 상태 grep 가능
+- 파일에 ROADMAP.md success criteria 8개 모두 grep 가능 (`docker --context`, `Voyage`, `streamSSE`, `git commit`, `toJSONSchema`, `cli-proxy-api`, `services.yaml`, `.env`)
 - 파일에 D-02 (No partial pass) 정책 한 줄 이상 grep 가능
 - `bun test` 가 phase 0 전체에서 종료 코드 0 (실패 케이스 명확히 표시)
 </acceptance_criteria>

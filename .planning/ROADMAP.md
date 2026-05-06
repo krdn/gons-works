@@ -10,14 +10,14 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 - Integer phases (0, 1, 2): Planned milestone work
 - Decimal phases: Urgent insertions only (INSERTED marker)
 
-- [ ] **Phase 0: Bootstrap & Spikes** - 5개 go/no-go 스파이크 통과 + services.yaml 초안 생성 (≤2h)
+- [ ] **Phase 0: Bootstrap & Spikes** - 6개 go/no-go 스파이크 통과 + services.yaml 초안 생성 (≤2h)
 - [ ] **Phase 1: Read-Only Knowledge Layer** - AI가 services.yaml + 라이브 docker 상태로 자연어 질의에 스트리밍 답변 (≤8h)
 - [ ] **Phase 2: Propose/Apply with Approval Gate** - 2PC patch + 5-key 승인 게이트 + git-versioned audit trail 완성 (≤8h)
 
 ## Phase Details
 
 ### Phase 0: Bootstrap & Spikes
-**Goal**: 5개 기술 스파이크가 모두 green이고, 서버 라이브 상태에서 생성된 services.yaml이 `state/` 첫 git commit으로 기록됨
+**Goal**: 6개 기술 스파이크(Spike 6 = SDK + cli-proxy-api 검증 추가)가 모두 green이고, 서버 라이브 상태에서 생성된 services.yaml이 `state/` 첫 git commit으로 기록됨
 **Depends on**: Nothing (first phase)
 **Requirements**: BOOT-01, BOOT-02, BOOT-03, BOOT-04, BOOT-05, DOG-01
 **Time budget**: ≤2h (overage requires explicit user discussion before proceeding to Phase 1)
@@ -27,8 +27,9 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
   3. `streamSSE` → htmx-ext-sse 경로로 브라우저가 `text-delta` 이벤트를 실시간 수신함 (Spike 3 green)
   4. `Bun.$` git commit이 `state/` 안에 body 포함 커밋으로 기록됨 (Spike 4 green)
   5. `z.toJSONSchema(schema)` 출력이 Claude `input_schema` 형태와 일치함 (Spike 5 green)
-  6. `services.yaml` 초안(5 핵심 stack: news/ais/n8n/open-webui/krdn-fx)이 `state/` 디렉토리 첫 git commit으로 기록됨
-  7. `bun run dev` 실행 시 `dserver` context unreachable 또는 `.env` 필수 키(`ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `COPILOT_MODEL_READONLY`, `COPILOT_MODEL_PROPOSE`) 누락 시 명시적 에러 메시지로 즉시 종료됨
+  6. `@anthropic-ai/sdk` + `baseURL` override로 cli-proxy-api(192.168.0.5:8317) 경유 chat / tool-use / streaming / model-echo 4가지 모두 동작 (Spike 6 green, D-09/D-10/D-11)
+  7. `services.yaml` 초안(5 핵심 stack: news/ais/n8n/open-webui/krdn-fx)이 `state/` 디렉토리 첫 git commit으로 기록됨
+  8. `bun run dev` 실행 시 `dserver` context unreachable 또는 `.env` 필수 키(`ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `COPILOT_MODEL_READONLY`, `COPILOT_MODEL_PROPOSE`) 누락 시 명시적 에러 메시지로 즉시 종료됨
 **Plans**: 8 plans across 4 waves
 
 **Wave 1** *(no dependencies, parallel)*
@@ -47,10 +48,16 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 **Wave 4** *(blocked on Wave 1-3 completion)*
 - `00-08-PLAN.md` — Phase 0 검증 + DOG-01/DOG-02 dogfood 마찰 정리
 
+**Wave 2 (continued)**
+- `00-09-PLAN.md` — Spike 6 (Anthropic SDK + cli-proxy-api roundtrip + fallback) — D-09/D-10/D-11 검증
+
 **Cross-cutting constraints:**
-- D-01: Spike 코드는 모두 `spikes/` 임시 디렉토리에 격리 (적용: 02, 03, 04, 05)
-- D-02: No partial pass — 5/5 spike green 강제 (적용: 03, 04, 08)
+- D-01: Spike 코드는 모두 `spikes/` 임시 디렉토리에 격리 (적용: 02, 03, 04, 05, 09)
+- D-02: No partial pass — 6/6 spike green 강제 (적용: 03, 04, 09, 08)
 - D-04: state/ 메인 repo 서브디렉토리 (적용: 02, 07)
+- D-09: cli-proxy-api 경유가 LLM 기본 endpoint (적용: 01, 09)
+- D-10: Phase 2 모델 = `claude-opus-4-6` (적용: 01, 09)
+- D-11: optional fallback schema (적용: 01, 09)
 - DESIGN.md correction #1-#5: 모든 plan에서 spec lock 인용
 
 ---
@@ -73,7 +80,7 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 
 #### Phase 0 Spike List (Go/No-Go Gates)
 
-5개 스파이크가 모두 green이어야 Phase 1이 시작된다. 리스크 순으로 정렬.
+6개 스파이크가 모두 green이어야 Phase 1이 시작된다. 리스크 순으로 정렬.
 
 | 우선순위 | 스파이크 | 통과 기준 | 실패 경로 |
 |---------|---------|----------|----------|
@@ -82,6 +89,7 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 | 3 | `streamSSE` → htmx-ext-sse chunk delivery | 브라우저가 `text-delta` 이벤트를 실시간 수신 | SSE 이벤트 이름 mismatch 디버깅; `Content-Type: text/event-stream` 헤더 확인 |
 | 4 | `Bun.$ \`git commit -m "msg" --allow-empty\`` in `state/` | `git log`에 body 포함 커밋 기록됨 | Bun 쉘 환경의 git config 점검 |
 | 5 | `z.toJSONSchema(schema)` Zod v4 | 출력이 Claude `input_schema` 형태와 일치 | Zod v3 fallback은 강제 시에만 사용; 수동 schema 문서화 |
+| 6 | `@anthropic-ai/sdk` + `baseURL=http://192.168.0.5:8317` (D-09) chat / tool-use / streaming / model-echo + fallback retry policy (D-11) | 4가지 SDK 검증 모두 PASS + `claude-opus-4-6` (D-10) 응답 + fallback 단위 테스트 5/5 pass | proxy 다운 → console.anthropic.com 직접 키로 임시 swap; SDK 호환성 issue → STACK.md SDK 버전 lock 재검토 |
 
 > **Spike 1 주의사항:** 이 스파이크는 "dockerode가 동작하는가"가 아니라 "Bun 쉘 환경에서 `Bun.$` + `--context dserver`가 원격 Docker 데몬을 안정적으로 resolve하는가"를 검증한다.
 
