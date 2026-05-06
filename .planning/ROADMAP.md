@@ -106,8 +106,34 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
   3. services.yaml과 실제 `docker ps` 결과가 다를 때 UI header에 drift warning이 표시됨
   4. `curl` 쿼리 후 SQLite event log에 timestamp + model + tool call 횟수가 기록됨
   5. tool iteration 8회 초과 또는 세션당 API call 30회 초과 시 루프가 hard cap으로 종료됨
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 9 plans across 4 waves (planned 2026-05-07)
+
+**Wave 1** *(no dependencies, parallel)*
+- `01-01-PLAN.md` — services.yaml 보강 (D-12.1..12.4) via scripts/draft-services-yaml.ts (KB-01)
+- `01-02-PLAN.md` — tools/_envelope.ts + _index.ts (LOOP-02/04/06 — 30s tool timeout)
+- `01-03-PLAN.md` — audit/schema.sql + log.ts (AUDIT-01/03 — D-14 hybrid schema)
+
+**Wave 2** *(blocked on 01-02 + 01-03 + 01-01)*
+- `01-04-PLAN.md` — 3 read tools (listContainers/readLogs/readCompose) + KB-04 sanitization (READ-01..03, KB-04)
+- `01-05-PLAN.md` — kb/{schema,chunker,index,stale-check}.ts + Voyage embedding (KB-02/03 — D-13.1..13.4)
+
+**Wave 3** *(blocked on Wave 2)*
+- `01-06-PLAN.md` — agent/{system-prompt,sse,loop}.ts (LOOP-01..07, UI-02 — 60s SSE chunk watchdog)
+- `01-07-PLAN.md` — src/server.ts /chat-stream + 4 startup probes (READ-04/05, UI-04, LOOP-06)
+
+**Wave 4** *(blocked on Wave 3)*
+- `01-08-PLAN.md` — public/index.html htmx 2.0.10 + htmx-ext-sse@2.2.4 (UI-01..04)
+- `01-09-PLAN.md` — E2E verification: 2 NL queries + curl SSE smoke + drift detection + hard caps (AUDIT-01/03)
+
+**Cross-cutting constraints:**
+- D-15.4: tool_result content = JSON.stringify(envelope), success/error 동일 shape (적용: 02, 04, 06)
+- D-15.3: 30s tool timeout + 60s SSE chunk timeout, 동일 envelope shape (적용: 02, 06, 07)
+- D-14.4: 모든 read tool 호출 audit row 기록 (적용: 02, 03, 04)
+- D-13.4: KB-03 staleness Boot + per-query, listContainers cache 30s 공유 (적용: 05, 07)
+- FRICTION #10: 모든 docker 호출 `--context home-server` 명시 (적용: 04, 07)
+- PITFALL #16: server bind 127.0.0.1 only (적용: 07, 08)
+
+**UI hint**: yes — UI-SPEC.md APPROVED (6/6 dimensions, 3 non-blocking FLAGs)
 
 ---
 
