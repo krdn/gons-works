@@ -1,10 +1,16 @@
 ---
 phase: 1
 slug: read-only-knowledge-layer
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-06
+reviewed_at: 2026-05-06
+checker_verdict: APPROVED
+checker_flags:
+  - "D1: 전송 single-word CTA — Korean context acceptable (non-blocking)"
+  - "D3: amber-500 for drift banner not declared as CSS token (non-blocking)"
+  - "D4: 13/15/17px scale uses 2px steps; heading marginally above body (non-blocking)"
 ---
 
 # Phase 1 — UI Design Contract
