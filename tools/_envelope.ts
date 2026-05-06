@@ -1,10 +1,10 @@
 // tools/_envelope.ts
 // 모든 read tool이 공유할 공통 wrapper. 두 가지 책임:
 //   1. ToolError shape (LOOP-02) — { problem, cause, fix, retryable } envelope.
-//   2. run() generic wrapper (LOOP-04 + LOOP-06) — catch 경로에서 절대 throw 하지 않고
+//   2. run() generic wrapper (LOOP-04 + LOOP-06) — catch 경로에서 예외를 절대 전파하지 않고
 //      AbortController로 30초 timeout을 강제한다.
 //
-// PITFALL #1 (orphan tool_use): catch 경로가 throw하면 agent loop가 tool_result를 push하지 못해
+// PITFALL #1 (orphan tool_use): catch 경로가 예외를 다시 던지면 agent loop가 tool_result를 push하지 못해
 // conversation poison이 발생한다. run()은 항상 ToolError를 반환한다.
 //
 // AUDIT-01/D-14.4: Plan 03의 audit/log.ts logTool() 호출은 Plan 04 read tool wrapping 단계에서 추가.
@@ -31,7 +31,7 @@ export function isToolError(x: unknown): x is ToolError {
 
 // 모든 read tool이 거치는 wrapper.
 // happy path: fn(signal)의 resolved 값을 그대로 반환.
-// error path: 어떤 throw든 ToolError envelope으로 변환 (PITFALL #1 방지).
+// error path: 어떤 예외든 ToolError envelope으로 변환 (PITFALL #1 방지).
 // timeout path: AbortController가 fn에 abort 신호 전달, AbortError catch 후 envelope.
 export async function run<T>(
   name: string,
