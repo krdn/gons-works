@@ -9,12 +9,13 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 0 of 3 (Bootstrap & Spikes)
-Plan: 2 of 9 in current phase (Wave 1 complete)
-Status: Wave 1 done — Wave 2 ready (Spike 1, 2, 3, 5, 6)
-Last activity: 2026-05-06 — Plans 00-01, 00-02 complete; Spike 4 GREEN
+Phase: 0 of 3 (Bootstrap & Spikes) — ✅ COMPLETE
+Plan: 9 of 9 complete (all 4 waves done)
+Status: Phase 0 PASS — 6/6 spike GREEN, 34 unit tests pass. Ready for Phase 1.
+Last activity: 2026-05-06 — Phase 0 verification + FRICTION.md (00-08); 9/9 plans done
 
-Progress: [██░░░░░░░░] 22%
+Progress: [██████████] 100% (Phase 0)
+Overall: [███░░░░░░░] 33% (1/3 phases)
 
 ## Performance Metrics
 
@@ -55,9 +56,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 0 Spike 1 (Bun.$ docker context): 192.168.0.8에서 dserver context가 이미 resolve되는지 확인 필요 (SSH config 선결)
-- Phase 0 Spike 2 (Voyage AI): API key 필요 → `.env.example`에 `VOYAGE_API_KEY` 문서화 필요
-- Phase 1 → Phase 2 budget: 18h 총 예산은 빡빡함. Phase 0 스파이크 실패 시 Phase 1 tool 구현 재설계 필요
+- ~~Phase 0 Spike 1 (docker context)~~ ✅ resolved — `home-server` context로 24 컨테이너 enumeration 성공
+- ~~Phase 0 Spike 2 (Voyage AI)~~ ✅ resolved — VOYAGE_API_KEY 발급, 1024차원 벡터 + cosine 검색 PASS
+- Phase 1 → Phase 2 budget: 18h 총 예산. Phase 0 ~140분(~2.3h) 사용. Phase 1+2 약 15.7h 남음.
+- 환경 변수 함정: 셸의 빈 `ANTHROPIC_API_KEY=`가 Bun .env 자동 로드를 덮어씀 → 라이브 실행 시 `unset ANTHROPIC_API_KEY` 필요. Phase 1 startup script에 친절한 에러 메시지 추가 권장 (FRICTION.md #8)
 
 ## Deferred Items
 
@@ -71,6 +73,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Phase 0 plans created — 8 plans across 4 waves (--auto), all D-01..D-08 covered, all 6 REQ-IDs covered
-Resume file: .planning/phases/00-bootstrap-spikes/01-PLAN.md
-Next: /gsd-execute-phase 0 --auto
+Stopped at: Phase 0 COMPLETE — 9/9 plans, 6/6 spike GREEN, 34 unit tests pass, BOOT-01..BOOT-05 + DOG-01/DOG-02 만족
+Resume file: state/PHASE-0-VERIFICATION.md
+Next: /gsd-discuss-phase 1  (Phase 1: Read-Only Knowledge Layer)
+Recommended: /clear 먼저 (이 세션 컨텍스트 길어짐)

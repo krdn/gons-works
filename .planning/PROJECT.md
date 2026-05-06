@@ -12,7 +12,18 @@
 
 ### Validated
 
-(None yet — ship to validate)
+Validated in Phase 0 (2026-05-06):
+- ✅ **Bun 1.3.6 + 6 핵심 deps lock** (hono / @anthropic-ai/sdk@0.93.0 / voyageai@0.2.1 / zod@4 / diff@9 / htmx-ext-sse@2.2.4) — 00-01
+- ✅ **`.env` Zod schema + startup guard** (BOOT-04, BOOT-05) — 00-01
+- ✅ **state/ git-versioned audit trail 골격** + 첫 의미 있는 commit (BOOT-03, D-04) — 00-02, 00-07
+- ✅ **Bun.$ + named docker context** (`home-server`)로 24 컨테이너 enumeration — 00-03 (DESIGN.md correction #2 라이브 검증)
+- ✅ **Voyage AI voyage-4-lite 1024차원 임베딩** + cosine 검색 (top-1 sim=0.6308) — 00-04 (DESIGN.md correction #1 라이브 검증)
+- ✅ **Hono streamSSE → htmx-ext-sse@2.2.4** wire 호환 (5 text-delta + final) — 00-05 (DESIGN.md correction #4 라이브 검증)
+- ✅ **Bun.$ git commit body roundtrip** + shell metachar escape — 00-02 spike 4
+- ✅ **Zod v4 z.toJSONSchema** → Claude input_schema 호환 — 00-06 (DESIGN.md correction #3 검증)
+- ✅ **Anthropic SDK + cli-proxy-api(192.168.0.5:8317)** chat / tool-use / streaming / opus-4-6 echo — 00-09 (D-09/D-10/D-11 라이브 lock-in)
+- ✅ **services.yaml 초안** 5 핵심 stack 분류 (BOOT-02) — 00-07
+- ✅ **dogfood meta-objective**: 통합 파이프라인 첫 검증 + FRICTION.md 10개 마찰 (DOG-01/DOG-02) — 00-08
 
 ### Active
 
@@ -90,4 +101,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-06 after initialization*
+*Last updated: 2026-05-06 after Phase 0 completion (9/9 plans, 6/6 spike GREEN, 34 unit tests pass)*

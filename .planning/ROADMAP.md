@@ -10,7 +10,7 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 - Integer phases (0, 1, 2): Planned milestone work
 - Decimal phases: Urgent insertions only (INSERTED marker)
 
-- [ ] **Phase 0: Bootstrap & Spikes** - 6개 go/no-go 스파이크 통과 + services.yaml 초안 생성 (≤2h)
+- [x] **Phase 0: Bootstrap & Spikes** - 6/6 spike GREEN + services.yaml 초안 + state/ 첫 commit (2026-05-06 완료, ~2.3h)
 - [ ] **Phase 1: Read-Only Knowledge Layer** - AI가 services.yaml + 라이브 docker 상태로 자연어 질의에 스트리밍 답변 (≤8h)
 - [ ] **Phase 2: Propose/Apply with Approval Gate** - 2PC patch + 5-key 승인 게이트 + git-versioned audit trail 완성 (≤8h)
 
@@ -144,6 +144,6 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Bootstrap & Spikes | 2/9 | Wave 1 done (Spike 4 ✓) | - |
+| 0. Bootstrap & Spikes | 9/9 | ✅ Complete (6/6 spike GREEN) | 2026-05-06 |
 | 1. Read-Only Knowledge Layer | 0/TBD | Not started | - |
 | 2. Propose/Apply with Approval Gate | 0/TBD | Not started | - |
