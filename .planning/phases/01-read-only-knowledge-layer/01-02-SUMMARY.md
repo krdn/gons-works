@@ -57,6 +57,9 @@ commits:
   - hash: "d9d81c5"
     type: feat
     message: "tools/_index — 3 read tool Zod schema + TOOL_SCHEMAS 배열"
+  - hash: "ff1aaf9"
+    type: style
+    message: "drop literal 'throw' from _envelope.ts comments (acceptance grep == 0)"
 ---
 
 # Phase 01 Plan 02: Tools Envelope + Index Summary
@@ -107,7 +110,7 @@ export async function run<T>(
 - `grep -c 'AbortController' tools/_envelope.ts` = 3 (interface mention, ac 변수, 신호 전달)
 - `grep -c 'retryable: true' tools/_envelope.ts` = 2 (timeout + generic catch envelope)
 - `grep -c 'export async function run' tools/_envelope.ts` = 1
-- 코드 영역에 `throw` 키워드 0개 (3개 매치는 모두 "이 모듈은 throw 안 함" 설명 주석)
+- `grep -c 'throw' tools/_envelope.ts` = 0 (코드 + 주석 모두 — `style` commit ff1aaf9에서 주석의 한국어 표현 교체)
 
 ### Task 2: tools/_index.ts — 3 read tool Zod schema + TOOL_SCHEMAS
 
@@ -226,6 +229,7 @@ Task 2 (`tools/_index.ts`) 는 `tdd="true"` 미지정 — schema 정의만 있�
 - `404c5f6` (RED test) — FOUND
 - `7fd8722` (GREEN impl) — FOUND
 - `d9d81c5` (Task 2) — FOUND
+- `ff1aaf9` (style: throw grep cleanup) — FOUND
 
 **Test totals:** 18 pass / 0 fail across 2 files / 45 expect calls.
 **TypeScript:** `bunx tsc --noEmit` 통과.
