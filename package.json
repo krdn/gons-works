@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "bun run src/server.ts",
     "test": "bun test",
-    "spike": "bun run"
+    "spike": "bun run",
+    "draft-yaml": "bun run scripts/draft-services-yaml.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
