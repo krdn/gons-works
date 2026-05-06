@@ -9,13 +9,13 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 0 of 3 (Bootstrap & Spikes) — ✅ COMPLETE
-Plan: 9 of 9 complete (all 4 waves done)
-Status: Phase 0 PASS — 6/6 spike GREEN, 34 unit tests pass. Ready for Phase 1.
-Last activity: 2026-05-06 — Phase 0 verification + FRICTION.md (00-08); 9/9 plans done
+Phase: 1 of 3 (Read-Only Knowledge Layer) — Context gathered, ready for plan
+Plan: 0 of TBD
+Status: Phase 1 discuss complete — 4 영역 × 4 결정 (D-12..D-15). 다음 단계: /gsd-plan-phase 1
+Last activity: 2026-05-06 — Phase 1 CONTEXT.md + DISCUSSION-LOG.md 작성
 
-Progress: [██████████] 100% (Phase 0)
-Overall: [███░░░░░░░] 33% (1/3 phases)
+Progress: [░░░░░░░░░░] 0% (Phase 1)
+Overall: [███░░░░░░░] 33% (1/3 phases — Phase 0 complete)
 
 ## Performance Metrics
 
@@ -74,7 +74,22 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Phase 0 COMPLETE — 9/9 plans, 6/6 spike GREEN, 34 unit tests pass, BOOT-01..BOOT-05 + DOG-01/DOG-02 만족
-Resume file: state/PHASE-0-VERIFICATION.md
-Next: /gsd-discuss-phase 1  (Phase 1: Read-Only Knowledge Layer)
+Stopped at: Phase 1 context gathered — 4 영역 × 4 결정 (D-12 services.yaml 보강, D-13 RAG chunking, D-14 AUDIT 입도, D-15 Tool error UI)
+Resume file: .planning/phases/01-read-only-knowledge-layer/01-CONTEXT.md
+Next: /gsd-plan-phase 1  (Phase 1: Read-Only Knowledge Layer)
 Recommended: /clear 먼저 (이 세션 컨텍스트 길어짐)
+
+### Phase 1 carry-forward 요약 (재논의 금지)
+
+- **Stack**: Bun 1.3.6 / Hono 4.x / @anthropic-ai/sdk@0.93 / voyageai@0.2.1 / zod@^4 + z.toJSONSchema / diff@9 / htmx 2.0.10 + htmx-ext-sse@2.2.4 / bun:sqlite (STACK.md HIGH lock)
+- **LLM endpoint**: cli-proxy-api(192.168.0.5:8317) 경유 + claude-sonnet-4-6 (D-09/D-10), D-11 fallback
+- **Docker context**: `home-server` (FRICTION #10)
+- **Architecture**: agent/{loop.ts, sse.ts}, tools/{_envelope.ts, _index.ts, listContainers.ts, readLogs.ts, readCompose.ts}, kb/{services.yaml, schema.ts, chunker.ts, index.ts, stale-check.ts}, audit/{schema.sql, log.ts}, public/index.html — ARCHITECTURE.md build order 9단계
+- **Hard caps**: top-k=5 / MAX_TOOL_ITERATIONS=8 / MAX_API_CALLS_PER_SESSION=30 / history compaction (system + last 6 exchanges) / 30s tool / 60s SSE chunk
+- **Sanitization regex**: SECRET|KEY|PASSWORD|TOKEN|BEARER 라인 제거 (KB-04)
+- **Error envelope shape**: { problem, cause, fix, retryable } (LOOP-02)
+- **5 SSE events**: text-delta / tool-start / tool-result / final / error (UI-02)
+- **services.yaml TODO 보강**: AI 초안 + 사용자 review (D-12.1), 전용 스크립트 scripts/draft-services-yaml.ts (D-12.2), Diff 표시 + 수동 mv (D-12.3), Zod strict + RAG 5 stack만 (D-12.4)
+- **RAG**: 필드 단위 청크 ~25 (D-13.1), 자연어 + stack 매그네틱 (D-13.2), 해시 기반 lazy 인덱싱 (D-13.3), Boot + per-query staleness (D-13.4)
+- **AUDIT**: turn + 자식 tool hybrid (D-14.1), data/copilot.db + .gitignore (D-14.2), minimum schema (D-14.3), 모든 read tool 기록 (D-14.4)
+- **Error UI**: envelope verbatim + 한국어 설명 (D-15.1), 별도 banner + LLM 설명 (D-15.2), timeout = envelope (D-15.3), JSON.stringify(envelope) tool_result (D-15.4)
