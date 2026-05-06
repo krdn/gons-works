@@ -1,0 +1,27 @@
+{
+  "name": "gons-works",
+  "description": "AI Operator Copilot for 192.168.0.5 — gons-works",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "test": "bun test",
+    "spike": "bun run"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/diff": "^8.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.93.0",
+    "diff": "9.0.0",
+    "hono": "^4.0.0",
+    "htmx-ext-sse": "2.2.4",
+    "voyageai": "0.2.1",
+    "zod": "^4.0.0"
+  }
+}
