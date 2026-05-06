@@ -29,7 +29,29 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
   5. `z.toJSONSchema(schema)` 출력이 Claude `input_schema` 형태와 일치함 (Spike 5 green)
   6. `services.yaml` 초안(5 핵심 stack: news/ais/n8n/open-webui/krdn-fx)이 `state/` 디렉토리 첫 git commit으로 기록됨
   7. `bun run dev` 실행 시 `dserver` context unreachable 또는 `.env` 필수 키(`ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `COPILOT_MODEL_READONLY`, `COPILOT_MODEL_PROPOSE`) 누락 시 명시적 에러 메시지로 즉시 종료됨
-**Plans**: TBD
+**Plans**: 8 plans across 4 waves
+
+**Wave 1** *(no dependencies, parallel)*
+- `00-01-PLAN.md` — Bun 프로젝트 init + .env Zod schema + bun:test 설정 (BOOT-04, BOOT-05)
+- `00-02-PLAN.md` — state/ 디렉토리 init + Spike 4 (Bun.$ git commit)
+
+**Wave 2** *(blocked on 00-01)*
+- `00-03-PLAN.md` — Spike 1 (Bun.$ docker --context dserver ps)
+- `00-04-PLAN.md` — Spike 2 (Voyage AI voyage-4-lite embedding)
+- `00-05-PLAN.md` — Spike 3 (Hono streamSSE → htmx-ext-sse)
+- `00-06-PLAN.md` — Spike 5 (Zod v4 z.toJSONSchema)
+
+**Wave 3** *(blocked on 00-02 + 00-03)*
+- `00-07-PLAN.md` — services.yaml 초안 + state/ 첫 git commit (BOOT-02, BOOT-03)
+
+**Wave 4** *(blocked on Wave 1-3 completion)*
+- `00-08-PLAN.md` — Phase 0 검증 + DOG-01/DOG-02 dogfood 마찰 정리
+
+**Cross-cutting constraints:**
+- D-01: Spike 코드는 모두 `spikes/` 임시 디렉토리에 격리 (적용: 02, 03, 04, 05)
+- D-02: No partial pass — 5/5 spike green 강제 (적용: 03, 04, 08)
+- D-04: state/ 메인 repo 서브디렉토리 (적용: 02, 07)
+- DESIGN.md correction #1-#5: 모든 plan에서 spec lock 인용
 
 ---
 
