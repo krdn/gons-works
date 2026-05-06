@@ -451,3 +451,6 @@ dist/
 
 # Test
 coverage/
+
+# data/ (D-14.2): bun:sqlite copilot.db — binary, not git-tracked
+/data/
