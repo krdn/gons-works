@@ -7,11 +7,13 @@
   "scripts": {
     "dev": "bun run src/server.ts",
     "test": "bun test",
-    "spike": "bun run"
+    "spike": "bun run",
+    "draft-yaml": "bun run scripts/draft-services-yaml.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/diff": "^8.0.0"
+    "@types/diff": "^8.0.0",
+    "@types/js-yaml": "4.0.9"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -21,6 +23,7 @@
     "diff": "9.0.0",
     "hono": "^4.0.0",
     "htmx-ext-sse": "2.2.4",
+    "js-yaml": "4.1.1",
     "voyageai": "0.2.1",
     "zod": "^4.0.0"
   }

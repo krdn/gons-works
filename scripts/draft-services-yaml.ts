@@ -1,6 +1,9 @@
 #!/usr/bin/env bun
 import { $ } from "bun"
+import { createPatch } from "diff"
+import { load } from "js-yaml"
 import { writeFileSync } from "node:fs"
+import { ServicesYamlSchema } from "../kb/schema"
 import { loadEnv } from "../src/env"
 
 // services.yaml 초안 생성 스크립트.
@@ -121,11 +124,39 @@ async function main(): Promise<void> {
   const draftPath = "state/services.yaml.draft"
   writeFileSync(draftPath, output)
   console.log(`[draft-services] ✓ ${draftPath} 작성 (${rows.length} 컨테이너 → ${grouped.size} stack)`)
+
+  // D-12.4: Zod strict 검증 (parse 실패는 경고만, draft 자체는 유지).
+  // AI 초안이 4 슬롯을 비워둘 수 있으나 default가 적용되어 parse 통과.
+  // depends_on에 number 같은 타입 위반은 issues로 노출.
+  try {
+    const parsed = ServicesYamlSchema.safeParse(load(output))
+    if (!parsed.success) {
+      console.warn("[draft-services] ⚠ 스키마 검증 경고:")
+      for (const issue of parsed.error.issues) {
+        console.warn(`  - ${issue.path.join(".")}: ${issue.message}`)
+      }
+    } else {
+      console.log("[draft-services] ✓ ServicesYamlSchema strict 검증 통과")
+    }
+  } catch (e) {
+    console.warn("[draft-services] ⚠ YAML parse 실패:", e)
+  }
+
+  // D-12.3: 현재 services.yaml과 unified diff 출력 (운영자가 시각적으로 review).
+  try {
+    const current = await Bun.file("state/services.yaml").text()
+    const patch = createPatch("services.yaml", current, output, "current", "draft")
+    console.log("\n=== Unified Diff (current → draft) ===")
+    console.log(patch)
+  } catch {
+    console.log("[draft-services] 현재 services.yaml 없음 — diff 생략")
+  }
+
   console.log(`\n다음 단계:`)
   console.log(`  1. cat ${draftPath} 으로 초안 확인`)
   console.log(`  2. state/services.yaml.review-checklist.md 항목별로 보강`)
-  console.log(`  3. mv ${draftPath} state/services.yaml`)
-  console.log(`  4. git add state/services.yaml + commit (BOOT-03)`)
+  console.log(`  3. Review then: mv ${draftPath} state/services.yaml`)
+  console.log(`  4. git add state/services.yaml + commit (BOOT-03 / KB-01)`)
 }
 
 main().catch((e) => {
