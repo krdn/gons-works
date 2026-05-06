@@ -123,10 +123,13 @@ describe("loadEnv FRICTION #8 (빈 셸 환경 변수)", () => {
   })
 
   test("ANTHROPIC_API_KEY 정상 + 다른 키 누락이면 일반 BOOT-05 envelope (FRICTION #8 분기 아님)", async () => {
+    // Bun이 cwd의 .env를 자동 로드하므로, .env가 없는 임시 cwd로 spawn하고
+    // src/env.ts는 절대 import 경로로 호출해 부모 .env 자동 로드를 우회한다.
+    const envPath = join(projectRoot, "src/env")
     const proc = Bun.spawn(
-      ["bun", "-e", "import('./src/env').then(({ loadEnv }) => loadEnv())"],
+      ["bun", "-e", `import('${envPath}').then(({ loadEnv }) => loadEnv())`],
       {
-        cwd: projectRoot,
+        cwd: "/tmp",
         env: {
           ANTHROPIC_API_KEY: "ok",
           // VOYAGE_API_KEY 누락 → 일반 schema 검증 실패
