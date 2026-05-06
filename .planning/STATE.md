@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 1 of 3 (Read-Only Knowledge Layer) — Wave 1 starting (3 plans parallel)
-Plan: 0 of 9
-Status: Phase 1 execute in progress — Wave 1 (01-01, 01-02, 01-03) parallel spawn
-Last activity: 2026-05-07 — /gsd-execute-phase 1 invoked, budget overage acknowledged
+Phase: 1 of 3 (Read-Only Knowledge Layer) — Wave 1 complete, Wave 2 starting
+Plan: 3 of 9
+Status: Wave 1 (01-01/02/03) merged to main, 68/68 tests pass. Wave 2 (01-04, 01-05) ready to dispatch.
+Last activity: 2026-05-07 — Wave 1 merged: kb/schema, tools/_envelope+_index, audit/schema.sql+log.ts
 
-Progress: [░░░░░░░░░░] 0% (Phase 1 — plans ready, 0/9 executed)
+Progress: [███░░░░░░░] 33% (Phase 1 — 3/9 plans executed)
 Overall: [███░░░░░░░] 33% (1/3 phases — Phase 0 complete)
 
 ## Performance Metrics
