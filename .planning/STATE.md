@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 ## Current Position
 
 Phase: 0 of 3 (Bootstrap & Spikes)
-Plan: 0 of 8 in current phase
-Status: Plans ready — ready to execute
-Last activity: 2026-05-06 — Phase 0 8개 PLAN.md 작성 완료 (4 wave, --auto)
+Plan: 2 of 9 in current phase (Wave 1 complete)
+Status: Wave 1 done — Wave 2 ready (Spike 1, 2, 3, 5, 6)
+Last activity: 2026-05-06 — Plans 00-01, 00-02 complete; Spike 4 GREEN
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 22%
 
 ## Performance Metrics
 

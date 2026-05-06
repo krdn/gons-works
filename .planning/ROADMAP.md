@@ -144,6 +144,6 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Bootstrap & Spikes | 0/TBD | Not started | - |
+| 0. Bootstrap & Spikes | 2/9 | Wave 1 done (Spike 4 ✓) | - |
 | 1. Read-Only Knowledge Layer | 0/TBD | Not started | - |
 | 2. Propose/Apply with Approval Gate | 0/TBD | Not started | - |
