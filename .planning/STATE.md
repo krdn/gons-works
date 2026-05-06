@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 1 of 3 (Read-Only Knowledge Layer) — Wave 1 complete, Wave 2 starting
-Plan: 3 of 9
-Status: Wave 1 (01-01/02/03) merged to main, 68/68 tests pass. Wave 2 (01-04, 01-05) ready to dispatch.
-Last activity: 2026-05-07 — Wave 1 merged: kb/schema, tools/_envelope+_index, audit/schema.sql+log.ts
+Phase: 1 of 3 (Read-Only Knowledge Layer) — Wave 2 complete, Wave 3 starting
+Plan: 5 of 9
+Status: Wave 2 (01-04/05) merged to main, 112/116 tests pass (4 E2E skipped). Wave 3 (01-06, 01-07) ready.
+Last activity: 2026-05-07 — Wave 2 merged: docker tools(listContainers/readLogs/readCompose) + kb(chunker/classify/index/stale-check)
 
-Progress: [███░░░░░░░] 33% (Phase 1 — 3/9 plans executed)
+Progress: [█████░░░░░] 56% (Phase 1 — 5/9 plans executed)
 Overall: [███░░░░░░░] 33% (1/3 phases — Phase 0 complete)
 
 ## Performance Metrics
@@ -60,7 +60,8 @@ None yet.
 - ~~Phase 0 Spike 2 (Voyage AI)~~ ✅ resolved — VOYAGE_API_KEY 발급, 1024차원 벡터 + cosine 검색 PASS
 - Phase 1 → Phase 2 budget: 18h 총 예산. Phase 0 ~140분(~2.3h, +20min overage) 사용. Phase 1+2 약 15.7h 남음. ROADMAP overage 조항으로 Phase 1 진행 전 사용자 확인 필요.
 - 환경 변수 함정: 셸의 빈 `ANTHROPIC_API_KEY=`가 Bun .env 자동 로드를 덮어씀 → 라이브 실행 시 `unset ANTHROPIC_API_KEY` 필요. Phase 1 startup script에 친절한 에러 메시지 추가 권장 (FRICTION.md #8)
-- **Phase 1 KB-01 prerequisite**: `state/services.yaml`이 TODO 슬롯(depends_on/volumes/normal_log_pattern/key_log_locations) 비워진 채 commit됨. Phase 1 KB-01 첫 task로 `state/services.yaml.review-checklist.md`에 따라 보강 필요. 보강 안 하면 RAG retrieval 품질이 Spike 2가 보여준 0.32 gap에 미치지 못할 수 있음.
+- ~~**Phase 1 KB-01 prerequisite**~~: ✅ resolved — services.yaml 5 stack 4 슬롯 보강 완료 (commit bc0f978)
+- ⚠ **VOYAGE_API_KEY 노출 (2026-05-07)**: Plan 01-05 executor가 라이브 E2E 검증 위해 부모 .env를 worktree로 복사 → 키가 sub-agent conversation transcript에 평문 노출. worktree .env는 삭제 완료. **권장 조치**: Voyage dashboard에서 즉시 키 회전 후 부모 .env 교체.
 
 ## Deferred Items
 
