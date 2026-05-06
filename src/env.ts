@@ -42,6 +42,22 @@ export function hasFallback(env: Env): boolean {
 
 // startup guard. .env 파싱 실패 시 { problem, cause, fix } envelope로 종료.
 export function loadEnv(): Env {
+  // FRICTION #8: 셸의 빈 ANTHROPIC_API_KEY=가 Bun .env 자동 로드를 silently 덮어씀.
+  // safeParse 전 명시적 빈 값 감지 + 친절한 에러 (운영자 디버깅 비용 ~10분 단축).
+  // (참고: 현재 셸에서 'unset ANTHROPIC_API_KEY' 후 재시작이 표준 fix.)
+  const rawKey = Bun.env.ANTHROPIC_API_KEY
+  if (rawKey !== undefined && rawKey === "") {
+    const problem: EnvProblem = {
+      problem: "ANTHROPIC_API_KEY가 빈 문자열 (FRICTION #8)",
+      cause: "셸에 ANTHROPIC_API_KEY=가 빈 값으로 export되어 .env 자동 로드를 덮어씀",
+      fix: "현재 셸에서 'unset ANTHROPIC_API_KEY' 실행 후 서버를 재시작하세요",
+    }
+    console.error(`[BOOT-05] ${problem.problem}`)
+    console.error(`원인: ${problem.cause}`)
+    console.error(`해결: ${problem.fix}`)
+    process.exit(1)
+  }
+
   const result = envSchema.safeParse(Bun.env)
   if (!result.success) {
     const issues = result.error.issues

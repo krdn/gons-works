@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { envSchema, hasFallback } from "./env"
+import { join } from "node:path"
 
 describe("envSchema (BOOT-05 + D-09/D-10/D-11)", () => {
   test("정상 입력은 parse 성공", () => {
@@ -88,5 +89,59 @@ describe("envSchema (BOOT-05 + D-09/D-10/D-11)", () => {
       VOYAGE_API_KEY: "pa-test",
     })
     expect(hasFallback(result)).toBe(false)
+  })
+})
+
+describe("loadEnv FRICTION #8 (빈 셸 환경 변수)", () => {
+  // loadEnv()는 process.exit(1)을 부르므로 subprocess로 격리해서 검증한다.
+  // child stderr에 친절한 에러 envelope이 그대로 출력되는지만 확인.
+
+  const projectRoot = join(import.meta.dir, "..")
+
+  test("ANTHROPIC_API_KEY=''로 호출하면 [BOOT-05] FRICTION #8 stderr 출력 + exit 1", async () => {
+    const proc = Bun.spawn(
+      ["bun", "-e", "import('./src/env').then(({ loadEnv }) => loadEnv())"],
+      {
+        cwd: projectRoot,
+        env: {
+          // 빈 ANTHROPIC_API_KEY 시뮬레이션 (FRICTION #8 셸 export 시나리오)
+          // VOYAGE_API_KEY는 정상 — 이 케이스가 ANTHROPIC만 빈 값임을 격리
+          ANTHROPIC_API_KEY: "",
+          VOYAGE_API_KEY: "pa-fake",
+          PATH: process.env.PATH ?? "",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    )
+    const exitCode = await proc.exited
+    const stderr = await new Response(proc.stderr).text()
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain("[BOOT-05]")
+    expect(stderr).toContain("FRICTION #8")
+    expect(stderr).toContain("unset ANTHROPIC_API_KEY")
+  })
+
+  test("ANTHROPIC_API_KEY 정상 + 다른 키 누락이면 일반 BOOT-05 envelope (FRICTION #8 분기 아님)", async () => {
+    const proc = Bun.spawn(
+      ["bun", "-e", "import('./src/env').then(({ loadEnv }) => loadEnv())"],
+      {
+        cwd: projectRoot,
+        env: {
+          ANTHROPIC_API_KEY: "ok",
+          // VOYAGE_API_KEY 누락 → 일반 schema 검증 실패
+          PATH: process.env.PATH ?? "",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    )
+    const exitCode = await proc.exited
+    const stderr = await new Response(proc.stderr).text()
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain("[BOOT-05]")
+    // FRICTION #8 분기는 트리거되지 않아야 함 (.env 일반 검증 envelope)
+    expect(stderr).not.toContain("FRICTION #8")
+    expect(stderr).toContain("VOYAGE_API_KEY")
   })
 })
