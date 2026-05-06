@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 1 of 3 (Read-Only Knowledge Layer) — Wave 2 complete, Wave 3 starting
-Plan: 5 of 9
-Status: Wave 2 (01-04/05) merged to main, 112/116 tests pass (4 E2E skipped). Wave 3 (01-06, 01-07) ready.
-Last activity: 2026-05-07 — Wave 2 merged: docker tools(listContainers/readLogs/readCompose) + kb(chunker/classify/index/stale-check)
+Phase: 1 of 3 (Read-Only Knowledge Layer) — Wave 3 complete, Wave 4 starting
+Plan: 7 of 9
+Status: Wave 3 (01-06/07) merged to main, 153/157 tests pass (4 E2E skipped). Wave 4 (01-08, 01-09) ready.
+Last activity: 2026-05-07 — Wave 3 merged: agent(system-prompt/loop/sse) + src/server.ts SSE + src/env.ts FRICTION #8
 
-Progress: [█████░░░░░] 56% (Phase 1 — 5/9 plans executed)
+Progress: [████████░░] 78% (Phase 1 — 7/9 plans executed)
 Overall: [███░░░░░░░] 33% (1/3 phases — Phase 0 complete)
 
 ## Performance Metrics
