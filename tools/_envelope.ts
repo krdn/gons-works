@@ -47,7 +47,9 @@ export async function run<T>(
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), timeoutMs)
   const startedAt = Date.now()
-  let result: T | ToolError
+  // result는 try/catch 양 경로에서 모두 할당되므로 finally 도달 시 항상 정의됨.
+  // 다만 TS는 정확히 추적하지 못해 TS2454 발생 → undefined 허용 + finally에서 ! narrow.
+  let result: T | ToolError | undefined
   let ok = false
   try {
     const value = await fn(ac.signal)
@@ -80,11 +82,13 @@ export async function run<T>(
     // 미전달 시 skip — Plan 02의 기존 시그니처 호환성 유지 + test simplicity.
     if (auditParentId !== undefined) {
       try {
-        const summary = isToolError(result!)
-          ? `${(result as ToolError).problem}: ${(result as ToolError).cause}`
-          : typeof result === "string"
-            ? (result as string).slice(0, 500)
-            : JSON.stringify(result).slice(0, 500)
+        // finally 도달 시 result는 try (line 54) 또는 catch (line 60/68)에서 할당된 후이므로 항상 정의됨.
+        const r = result!
+        const summary = isToolError(r)
+          ? `${r.problem}: ${r.cause}`
+          : typeof r === "string"
+            ? r.slice(0, 500)
+            : JSON.stringify(r).slice(0, 500)
         logTool(auditParentId, name, auditInput ?? null, summary, ok, Date.now() - startedAt)
       } catch {
         // audit 실패는 절대 tool 결과에 영향 주지 않는다 — PITFALL #1 invariant 유지.
