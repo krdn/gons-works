@@ -108,16 +108,27 @@ app.get("/chat-stream", (c) => {
       const watchdog = createChunkWatchdog((timeoutEvent) => {
         watchdogFired = true
         // stream이 이미 닫힌 경우 writeSSE가 reject할 수 있음 — 조용히 swallow.
-        void stream
+        const p = stream
           .writeSSE(toSSEFrame(timeoutEvent))
           .catch(() => {
             /* stream already closed */
           })
+        pendingWrites.push(p)
       })
 
-      const emit = async (ev: SseEvent): Promise<void> => {
+      // F-2 fix (Phase 2 D-E1 carry-back, plan 01-10): emit 큐.
+      // iterate가 sync emit 콜백을 expect하므로 server.ts는 async writeSSE를 fire-and-forget
+      // 래핑할 수밖에 없다. 이전 구현은 iterate resolve 직후 streamSSE가 stream을 close하여
+      // 큐잉된 마지막 writeSSE Promise(특히 final event)가 resolve되기 전에 swallow되었다.
+      // finally에서 Promise.allSettled로 모든 pending write를 기다려 정상 emit을 보장.
+      const pendingWrites: Promise<void>[] = []
+
+      const emit = (ev: SseEvent): void => {
         watchdog.reset() // LOOP-06: 매 chunk마다 timer 갱신
-        await stream.writeSSE(toSSEFrame(ev))
+        const p = stream.writeSSE(toSSEFrame(ev)).catch(() => {
+          /* stream already closed */
+        })
+        pendingWrites.push(p)
         if (ev.type === "final" || ev.type === "error") {
           watchdog.cancel() // 정상 종료 — timer 영구 중단
         }
@@ -127,7 +138,7 @@ app.get("/chat-stream", (c) => {
         // UI-04 / D-13.4: per-query staleness check (kb/stale-check.ts 30s TTL cache)
         const report: StalenessReport = await staleCheck(env)
         if (report.unknown.length > 0 || report.stale.length > 0) {
-          await emit({
+          emit({
             type: "drift",
             message: `⚠ services.yaml 불일치: docker-only ${report.unknown.length}개, yaml-only ${report.stale.length}개 발견`,
             unknown: report.unknown,
@@ -144,9 +155,7 @@ app.get("/chat-stream", (c) => {
         await iterate(prompt, {
           sessionId,
           ragContext,
-          emit: (ev) => {
-            void emit(ev)
-          },
+          emit,
           abortSignal: watchdog.signal,
         })
       } catch (err) {
@@ -154,7 +163,7 @@ app.get("/chat-stream", (c) => {
         // watchdogFired인 경우 envelope 중복 emit 회피
         const errName = (err as Error).name
         if (errName !== "AbortError" && !watchdogFired) {
-          await emit({
+          emit({
             type: "error",
             problem: "서버 처리 실패",
             cause: ((err as Error).message ?? String(err)).slice(0, 200),
@@ -165,6 +174,8 @@ app.get("/chat-stream", (c) => {
       } finally {
         // 모든 경로에서 timer 누수 방지
         watchdog.cancel()
+        // F-2 fix: stream close 전에 모든 emit 완결 보장 (final/error 클라이언트 도달 보장)
+        await Promise.allSettled(pendingWrites)
       }
     },
     async (err, stream) => {
