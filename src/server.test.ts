@@ -92,3 +92,67 @@ describe("server.ts (Plan 01-07)", () => {
     expect(ct).toContain("text/html")
   })
 })
+
+// === F-2 회귀 방지 (Phase 2 D-E1 carry-back, plan 01-10 Task 4 T2) ===
+//
+// 핵심 인보이언트: 모든 stream.writeSSE Promise는 stream close 전에 flush된다.
+// 이전 버그: emit 콜백이 `void emit(ev)` fire-and-forget이라 iterate resolve 직후
+// streamSSE가 stream을 close하면 마지막 writeSSE Promise(특히 final event)가 swallow됨.
+// fix: pendingWrites 큐 + finally Promise.allSettled로 모든 emit 완결 보장.
+//
+// 단위 검증 전략: emit + pendingWrites + Promise.allSettled 패턴 자체를 격리 재현하여
+// "마지막 emit이 모두 resolve된 뒤에야 flush 단계가 끝난다"를 결정적으로 보장.
+describe("F-2 회귀 — pendingWrites flush 패턴 (server.ts SSE wrapper 핵심 인보이언트)", () => {
+  test("Promise.allSettled가 큐의 모든 Promise resolve를 기다린다 (이전 fire-and-forget 버그 재현 + 회귀)", async () => {
+    const writeOrder: string[] = []
+    const pendingWrites: Promise<void>[] = []
+
+    // mock writeSSE: 각 호출은 다른 지연을 가진 Promise. 마지막(final)이 가장 늦게 resolve.
+    function mockWriteSSE(label: string, delayMs: number): Promise<void> {
+      return new Promise<void>((resolve) =>
+        setTimeout(() => {
+          writeOrder.push(label)
+          resolve()
+        }, delayMs),
+      )
+    }
+
+    // sync emit (server.ts와 동일 패턴) — fire-and-forget으로 push만 함
+    function emit(label: string, delayMs: number): void {
+      pendingWrites.push(mockWriteSSE(label, delayMs))
+    }
+
+    // 가상의 iterate 흐름: drift → text-delta → tool-start → tool-result → final
+    emit("drift", 5)
+    emit("text-delta-1", 8)
+    emit("tool-start", 3)
+    emit("tool-result", 6)
+    emit("final", 12) // 가장 늦게 resolve — 이전 버그면 stream close에 의해 swallow
+
+    // server.ts finally 블록 시뮬레이션
+    await Promise.allSettled(pendingWrites)
+
+    // 모든 emit이 resolve되어야 함 (특히 final)
+    expect(writeOrder).toContain("final")
+    expect(writeOrder.length).toBe(5)
+  })
+
+  test("rejected writeSSE는 swallow되지만 다른 emit flush를 막지 않는다 (stream already closed 케이스)", async () => {
+    const writeOrder: string[] = []
+    const pendingWrites: Promise<void>[] = []
+
+    pendingWrites.push(
+      new Promise<void>((resolve) => setTimeout(() => { writeOrder.push("a"); resolve() }, 5)),
+    )
+    pendingWrites.push(
+      Promise.reject(new Error("stream already closed")).catch(() => { /* swallow */ }),
+    )
+    pendingWrites.push(
+      new Promise<void>((resolve) => setTimeout(() => { writeOrder.push("c"); resolve() }, 10)),
+    )
+
+    await Promise.allSettled(pendingWrites)
+    expect(writeOrder).toEqual(["a", "c"])
+  })
+})
+

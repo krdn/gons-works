@@ -241,4 +241,99 @@ describe("LOOP-03 session 한도 — 초과 시 첫 iteration에서 error emit +
   })
 })
 
+// === F-1 회귀 방지 (Phase 2 D-E1 carry-back, plan 01-10 Task 4 T1) ===
+//
+// 2 iteration loop에서 첫 응답이 tool_use를 포함할 때, 두 번째 callWithFallback에 전달되는
+// messages가 비어있지 않은지 검증. 이전 버그: compactHistory가 length<=7 분기에서 같은 ref
+// 반환 → caller의 `messages.length=0; messages.push(...compacted)` 패턴이 in-place로 messages를
+// 비움 → 두 번째 호출에서 400 invalid_request_error.
+describe("LOOP-05 F-1 회귀 — 2 iteration tool-use turn에서 두 번째 호출 messages 보존", () => {
+  test("compactHistory는 항상 새 array 반환 (early-return 분기에서도)", () => {
+    const small: Anthropic.MessageParam[] = [{ role: "user", content: "hi" }]
+    const out1 = compactHistory(small)
+    expect(out1).not.toBe(small) // 같은 ref 아님
+    expect(out1.length).toBe(1)
+
+    // length <= 7 + token 초과
+    const big = "x".repeat(60_000)
+    const seven: Anthropic.MessageParam[] = Array.from({ length: 7 }, () => ({
+      role: "user" as const,
+      content: big,
+    }))
+    const out2 = compactHistory(seven)
+    expect(out2).not.toBe(seven)
+    expect(out2.length).toBe(7)
+  })
+
+  test("array aliasing 안전: compactHistory 결과를 caller가 in-place reset해도 messages 손실 없음", () => {
+    // F-1 root cause 회귀 검증: const a=[1,2,3]; const b=a; a.length=0; a.push(...b) → 0 (BUG)
+    // fix 후 compactHistory는 새 array 반환하므로 aliasing 없음.
+    const messages: Anthropic.MessageParam[] = [
+      { role: "user", content: "u1" },
+      { role: "assistant", content: "a1" },
+      { role: "user", content: "u2" },
+    ]
+    const compacted = compactHistory(messages)
+    messages.length = 0
+    messages.push(...compacted)
+    expect(messages.length).toBe(3) // 이전 버그면 0
+  })
+
+  test("iterate: 2-iteration tool_use turn에서 두 번째 messages.create 호출 시 messages.length > 0", async () => {
+    // 첫 응답: tool_use (listContainers). 두 번째 응답: end_turn.
+    // mock client가 두 번째 호출의 messages를 캡처하여 검증.
+    const toolUseMsg: Anthropic.Message = {
+      id: "msg1",
+      container: null,
+      content: [
+        { type: "text", text: "확인하겠습니다.", citations: null },
+        { type: "tool_use", id: "tu_1", name: "listContainers", input: { limit: 5 } },
+      ],
+      model: "claude-sonnet-4-6",
+      role: "assistant",
+      stop_reason: "tool_use",
+      stop_details: null,
+      stop_sequence: null,
+      type: "message",
+      usage: {
+        input_tokens: 10,
+        output_tokens: 30,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        service_tier: null,
+        server_tool_use: null,
+      },
+    } as unknown as Anthropic.Message
+
+    const capturedCalls: Anthropic.MessageParam[][] = []
+    let i = 0
+    const responses = [toolUseMsg, endTurnMessage("answer")]
+    _setClientFactoryForTest(() => ({
+      messages: {
+        create: async (args: { messages: Anthropic.MessageParam[] }): Promise<Anthropic.Message> => {
+          capturedCalls.push([...args.messages])
+          const r = responses[i++]
+          if (!r) throw new Error("mock exhausted")
+          return r
+        },
+      },
+    } as unknown as Anthropic))
+
+    const events: SseEvent[] = []
+    await iterate("ais-prod redis 어디 쓰여?", {
+      sessionId: "s-f1-regression",
+      emit: (ev) => events.push(ev),
+    })
+
+    // 두 번 호출되어야 함
+    expect(capturedCalls.length).toBe(2)
+    // 두 번째 호출의 messages가 비어있지 않아야 함 (F-1 핵심 보장)
+    expect(capturedCalls[1]!.length).toBeGreaterThan(0)
+    // assistant + user(tool_result) append 후 두 번째 호출에는 messages.length === 3 기대
+    expect(capturedCalls[1]!.length).toBe(3)
+    // final emit 도달
+    expect(events[events.length - 1]?.type).toBe("final")
+  })
+})
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
