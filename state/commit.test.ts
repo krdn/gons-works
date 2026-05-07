@@ -226,5 +226,69 @@ describe("state/commit", () => {
       const tmpFile = join(tmp, "data/.tmp", `state-msg-${action.nonce}.txt`)
       expect(existsSync(tmpFile)).toBe(false)
     })
+
+    test("v1.1 hotfix (F-9): allowEmpty=true → staged 변경 없어도 commit 성공 (lifecycle-only audit log)", async () => {
+      // baseline commit 먼저 — pathspec 'state/' 매칭을 위해 state/ 안 한 파일이 git tree에 존재해야 함.
+      const baseCommit = Bun.spawn(
+        ["git", "commit", "-m", "baseline state/marker.json"],
+        { cwd: tmp },
+      )
+      await baseCommit.exited
+      // staged 비우기 — commit 직전에 staged 0 강제.
+      const reset = Bun.spawn(["git", "reset"], { cwd: tmp })
+      await reset.exited
+
+      const lifecycleNonce = crypto.randomUUID()
+      const action: ApplyResult = {
+        stack: "news",
+        command: "compose restart",
+        service: "test-svc-a",
+        userPrompt: "restart",
+        reasoning: "lifecycle-only — fileEdit 없음",
+        nonce: lifecycleNonce,
+      }
+      const msg = buildMessage(action)
+
+      // allowEmpty=true → 빈 commit 허용.
+      await commitWithMessage(msg, lifecycleNonce, tmp, true)
+
+      // commit 1건 생성 + body에 nonce 포함 검증.
+      const log = Bun.spawn(["git", "log", "--all", "-1", "--pretty=%B"], {
+        cwd: tmp,
+        stdout: "pipe",
+      })
+      await log.exited
+      const lastMsg = await new Response(log.stdout).text()
+      expect(lastMsg).toContain(`Nonce: ${lifecycleNonce}`)
+      expect(lastMsg).toContain("apply(news): compose restart")
+
+      // 빈 diff 확인 (--allow-empty 동작 증거).
+      const showStat = Bun.spawn(["git", "show", "--stat", "HEAD"], {
+        cwd: tmp,
+        stdout: "pipe",
+      })
+      await showStat.exited
+      const statText = await new Response(showStat.stdout).text()
+      expect(statText).not.toMatch(/\d+ files? changed/)
+
+      const tmpFile = join(tmp, "data/.tmp", `state-msg-${lifecycleNonce}.txt`)
+      expect(existsSync(tmpFile)).toBe(false)
+    })
+
+    test("v1.1 hotfix (F-9): allowEmpty=false (default) — staged 0이면 여전히 throw (회귀 방지)", async () => {
+      // 기존 동작 보존 검증: fileEdit 있는 흐름에서 의도치 않은 빈 commit 방지.
+      const baseCommit = Bun.spawn(
+        ["git", "commit", "-m", "baseline state/marker.json"],
+        { cwd: tmp },
+      )
+      await baseCommit.exited
+      const reset = Bun.spawn(["git", "reset"], { cwd: tmp })
+      await reset.exited
+
+      const guardNonce = crypto.randomUUID()
+      await expect(
+        commitWithMessage("subject\n\nbody", guardNonce, tmp /* allowEmpty default false */),
+      ).rejects.toThrow(/git commit 실패/)
+    })
   })
 })

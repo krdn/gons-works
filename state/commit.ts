@@ -71,10 +71,18 @@ export function buildMessage(action: ApplyResult): string {
 // D-D3 / D-04 lock — Bun.spawn -F 임시파일 + cwd 메인 repo 루트 + pathspec 'state/'.
 // 호출자는 production 코드에서 cwd default `.` (메인 repo 루트)을 사용한다.
 // test에서는 임시 git repo 경로로 cwd를 override하여 격리 검증한다.
+//
+// allowEmpty (v1.1 hotfix 2026-05-07, F-9 fix):
+//   D-B1 7-command 중 lifecycle-only 5개 (compose restart/start/stop/up -d/down/logs/ps)는
+//   fileEdit 없이 docker 명령만 실행 → state/ 변경 0 → `git commit` 단독은 staged 변경 없어 exit 1.
+//   D-D4 lock(applied/rolled-back만 commit)을 만족시키려면 audit log commit이 필요한데
+//   staged 0건이면 `--allow-empty` 없이는 불가능. caller가 명시적으로 lifecycle-only 흐름임을 알 때
+//   `allowEmpty: true`로 호출. fileEdit 있는 흐름은 false(default) 유지하여 의도치 않은 빈 commit 차단.
 export async function commitWithMessage(
   message: string,
   nonce: string,
   cwd: string = ".",
+  allowEmpty: boolean = false,
 ): Promise<void> {
   const tmpDir = join(cwd, "data/.tmp")
   if (!existsSync(tmpDir)) {
@@ -86,10 +94,10 @@ export async function commitWithMessage(
   try {
     // 임시파일 경로는 cwd 기준 상대로 전달 (Bun.spawn에 cwd 적용 후 동일 위치 해석).
     const relTmpFile = join("data/.tmp", `state-msg-${nonce}.txt`)
-    const proc = Bun.spawn(
-      ["git", "commit", "-F", relTmpFile, "--", "state/"],
-      { cwd, stdout: "pipe", stderr: "pipe" },
-    )
+    const argv = ["git", "commit"]
+    if (allowEmpty) argv.push("--allow-empty")
+    argv.push("-F", relTmpFile, "--", "state/")
+    const proc = Bun.spawn(argv, { cwd, stdout: "pipe", stderr: "pipe" })
     const exit = await proc.exited
     if (exit !== 0) {
       const stderrText = await new Response(proc.stderr).text()
