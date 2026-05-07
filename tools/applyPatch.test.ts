@@ -18,7 +18,14 @@
 //   - state 미러 revert 검증은 임시 fixture mirror 파일을 만들어 content 비교.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import {
   applyPatch,
   dependencies,
@@ -29,10 +36,17 @@ import type { ProposePatchResult } from "./proposePatch"
 import type { ApprovalDecision } from "../approval/store"
 
 // === Fixture 경로 (테스트용 격리 mirror) ===
+// 실제 state/compose/news.yml은 절대 건드리지 않는다 — 02-04 SUMMARY 산출물.
+// 테스트는 별도 fixture mirror 경로를 사용. 단, applyPatch가 mirror staleness check에
+// 사용하는 경로는 fileEdit.path이므로 그 path를 fixture로 주입하면 격리 가능.
 const TEST_STACK = "news"
-const TEST_MIRROR_PATH = `state/compose/${TEST_STACK}.yml`
+const ORIGINAL_MIRROR_PATH = `state/compose/${TEST_STACK}.yml`
+const TEST_MIRROR_PATH = `state/compose/${TEST_STACK}.test-fixture.yml`
 const TEST_REMOTE_PATH = "/원격경로/news/docker-compose.yml"
 const PENDING_DIR = "state/.pending"
+
+// 원본 mirror 보존 — 테스트 시작 시 기록, afterAll에서 복원.
+let originalMirrorBackup: string | null = null
 
 // 테스트 사이 marker 격리 — D-C4 reject 방지.
 function clearPendingMarkers(): void {
@@ -43,6 +57,15 @@ function clearPendingMarkers(): void {
   for (const f of readdirSync(PENDING_DIR)) {
     if (f === ".gitkeep") continue
     rmSync(`${PENDING_DIR}/${f}`, { force: true })
+  }
+}
+
+// 테스트 fixture 정리 — afterEach에서 호출.
+function cleanupTestFixture(): void {
+  try {
+    rmSync(TEST_MIRROR_PATH, { force: true })
+  } catch {
+    // swallow
   }
 }
 
@@ -61,11 +84,13 @@ function makeProposal(overrides: Partial<ProposePatchResult> = {}): ProposePatch
 
 beforeEach(() => {
   clearPendingMarkers()
+  cleanupTestFixture()
   _resetDependenciesForTest()
 })
 
 afterEach(() => {
   clearPendingMarkers()
+  cleanupTestFixture()
   _resetDependenciesForTest()
   delete process.env.APPLY_TEST_MODE
 })
@@ -189,9 +214,7 @@ describe("applyPatch — happy path", () => {
     // mirror 파일이 newContent로 갱신됐는지 검증
     const after = await Bun.file(TEST_MIRROR_PATH).text()
     expect(after).toBe(newContent)
-
-    // 정리 — 다음 테스트 영향 차단
-    writeFileSync(TEST_MIRROR_PATH, originalContent)
+    // afterEach가 cleanupTestFixture로 fixture 파일 삭제 — 별도 정리 불필요.
   })
 })
 
@@ -436,9 +459,7 @@ describe("applyPatch — decision='edited' newContent override", () => {
     // mirror 파일이 userEditedContent로 갱신
     const after = await Bun.file(TEST_MIRROR_PATH).text()
     expect(after).toBe(userEditedContent)
-
-    // 정리
-    writeFileSync(TEST_MIRROR_PATH, originalContent)
+    // afterEach가 cleanupTestFixture로 fixture 파일 삭제.
   })
 })
 
@@ -456,15 +477,16 @@ describe("applyPatch — D-C3 marker 점진 update", () => {
       }
       return { exit: 0, stdout: "", stderr: "" }
     }
-    dependencies.gitAdd = async () => {
-      // git commit 직전 marker 읽기 — docker_finished_at + exit_code 채워졌어야 함
+    dependencies.gitAdd = async () => {}
+    dependencies.commitWithMessage = async () => {
+      // git commit 직전 marker 읽기 — docker_finished_at + exit_code 채워졌어야 함.
+      // (gitAdd는 fileEdit 없을 때 호출 안 되므로 commitWithMessage가 더 안정적인 hook 위치.)
       const files = readdirSync(PENDING_DIR).filter((f) => f.endsWith(".json"))
       for (const f of files) {
         const m = JSON.parse(await Bun.file(`${PENDING_DIR}/${f}`).text())
         markerSnapshots.push({ ...m, _at: "before-git" })
       }
     }
-    dependencies.commitWithMessage = async () => {}
     dependencies.gitRevParseHead = async () => "abc1234"
 
     const proposal = makeProposal({ command: "compose restart", service: "news-prod-app" })
@@ -499,18 +521,24 @@ describe("applyPatch — APPLY_TEST_MODE seam (Task 3, D-A3 라이브 검증 지
     process.env.APPLY_TEST_MODE = "1"
     const deps = makeDefaultDependencies()
 
-    // sshWriteFile은 no-op (PROD 원격 파일 변경 안 함)
-    const result = await deps.sshWriteFile("gon@192.168.0.5", "/원격경로/news/docker-compose.yml", "x")
+    // sshWriteFile은 no-op (PROD 원격 파일 변경 안 함) — 어떤 인자든 항상 success.
+    const result = await deps.sshWriteFile(
+      "gon@192.168.0.5",
+      "/원격경로/news/docker-compose.yml",
+      "x",
+    )
     expect(result.exit).toBe(0)
     expect(result.stderr).toBe("")
-    // PROD 파일은 건드리지 않으므로 위 결과는 항상 success.
 
-    // sshReadFile은 로컬 미러 그대로 반환 (drift 0 강제)
-    const mirrorContent = `services:\n  news-prod-app:\n    image: news:1.0\n`
-    writeFileSync(TEST_MIRROR_PATH, mirrorContent)
-    const readResult = await deps.sshReadFile("gon@192.168.0.5", "/원격경로/news/docker-compose.yml")
+    // sshReadFile은 로컬 미러 그대로 반환 — 실제 state/compose/news.yml 내용을
+    // 읽어 그대로 stdout으로 echo (PROD 파일은 건드리지 않음).
+    const expectedMirror = readFileSync(ORIGINAL_MIRROR_PATH, "utf-8")
+    const readResult = await deps.sshReadFile(
+      "gon@192.168.0.5",
+      "/원격경로/news/docker-compose.yml",
+    )
     expect(readResult.exit).toBe(0)
-    expect(readResult.stdout).toBe(mirrorContent)
+    expect(readResult.stdout).toBe(expectedMirror)
 
     delete process.env.APPLY_TEST_MODE
   })
