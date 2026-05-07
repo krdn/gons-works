@@ -93,3 +93,64 @@ curl -s --max-time 30 "http://127.0.0.1:3000/chat-stream?prompt=hello"
 - D-E1 재검증 시 burst 검증 (4+ embed calls 연속) 필수 패턴으로 lock-in
 
 **Hotfix scope:** 운영 절차 문서 업데이트 (코드 수정 없음). 02-01 SOP 보강으로 충분.
+
+---
+
+## F-3 — Worktree dispatcher가 stale `origin/main`을 base로 사용 (Initial commit `d4982cd`)
+
+**Status:** WORKAROUND APPLIED (push origin main으로 origin/main 갱신 → 49892d9). Root cause = local main 121 commits ahead of origin/main, dispatcher는 origin/main을 base로 시도.
+**Severity:** HIGH (worktree에 plan source 부재 → executor 작업 불가)
+**Discovered:** 2026-05-07 (Phase 2 Wave 1 dispatch)
+**Source:** Plan 02-03/04 executor checkpoint 반환 ("HEAD is d4982cd Initial commit, plan source not present in worktree")
+
+**Symptom:**
+- 02-03 worktree (agent-a3b391ed8ace3eddc) HEAD = `d4982cd Initial commit`
+- 02-04 worktree (agent-a6b2a9482900c54ac) HEAD = `d4982cd Initial commit`
+- 두 worktree 모두 phase 1/2 코드 + .planning/ 산출물 부재
+- 그러나 02-02 worktree (agent-a3b2d581a1dff79fb)는 정상 시드 `a93901f` — 비결정적 동작
+
+**Verified facts:**
+- local `main` HEAD = `a93901f` (Phase 0/1 + Phase 2 plans 완성본)
+- pre-push `origin/main` HEAD = `d4982cd Initial commit` (push 미실시)
+- `git rev-list --count origin/main..main` = 121 (push 미실시)
+
+**Hypothesis:**
+- dispatcher가 `git worktree add` 시 명시적 base 미지정 → 일부 시점에 `origin/main` 또는 stale fetch 결과 base 사용
+- 동일 시점에 02-02는 다른 코드 경로(local HEAD 또는 직전 commit)를 잡아 정상 시드
+- 02-02 executor가 자체 복구(`git reset --hard a93901f`)로 우회 — 이게 운 좋은 케이스
+
+**Workaround (적용됨):**
+- `git push origin main` 실행 → origin/main = `49892d9` (hotfix 커밋)
+- 이후 worktree dispatch 시 origin/main 기준으로도 정상 시드
+- 모든 새 dispatch에 prompt 명시 추가: "worktree base 시작 시 HEAD 확인, d4982cd면 git reset --hard origin/main 실행"
+
+**Root cause / proper fix (orchestrator 측):**
+- dispatcher 코드 점검 필요 — `git worktree add <path> <branch>` 사용 시 base 명시 (`git worktree add -b <new> <path> main`)
+- 또는 working tree에서 dispatcher가 spawn 시 항상 local HEAD 기준 prefer
+- 본 issue는 gsd-execute-phase의 worktree-add 호출 부분에 적용해야 함 (gsd 측 책임)
+
+**Carry-forward:**
+- Phase 2 잔여 plan dispatch에 worktree HEAD verification 단계 prompt 명시 (02-05 ~ 02-10 모두 포함)
+- 다음 milestone 시작 전 dispatcher 결함 root-cause fix 권장
+
+---
+
+## F-4 — Plan 02-03 / 02-PATTERNS / 02-CONTEXT / 02-10 D-04 lock 위반 (state/.git/hooks/pre-commit 표현)
+
+**Status:** RESOLVED 2026-05-07 (commit `49892d9 docs(02): hotfix — state/.git/hooks/pre-commit 모순 정정 (D-04 lock 준수)`)
+**Severity:** MEDIUM (plan-implementation 모순 — executor가 D-04 위반 코드 작성할 위험)
+**Discovered:** 2026-05-07 (02-03 executor 진단 중)
+
+**Symptom:**
+- 00-CONTEXT.md line 54-56: D-04 = "메인 repo 안의 state/ 서브디렉토리. 별도 git submodule이나 별 repo로 분리하지 않는다."
+- STATE.md "deferred items": "state/ git submodule 분리 → v2+"
+- 그러나 02-03 PLAN.md, 02-PATTERNS.md, 02-CONTEXT.md, 02-10 PLAN.md 다수 위치에서 `state/.git/hooks/pre-commit` 경로 + "state/는 별도 git repo (D-04)" 문구 — **D-04를 정반대로 인용**
+
+**Resolution:**
+- hotfix commit `49892d9`: 5개 파일에서 `state/.git/hooks/pre-commit` → 메인 repo `.git/hooks/pre-commit` (state/ pathspec gated 블록)으로 정정
+- `scripts/install-state-hook.sh` idempotent installer 신설 (clone 후 hook 자동 복구)
+- state/.gitignore는 정상 (state subdir의 .gitignore — 메인 repo 추적)
+- state/commit.ts spawn 호출 패턴: `cwd: 'state'` → `cwd: '.', pathspec: ['--', 'state/']`로 정정
+
+**Why missed in plan-checker:** plan-check phase가 D-04 cross-reference를 명시 검증하지 않음. 향후 plan checker 룰 추가 검토:
+- "state/.git" 패턴이 plan에 등장하면 D-04 위반 의심으로 BLOCKER 표시
