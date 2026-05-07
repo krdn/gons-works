@@ -155,6 +155,7 @@ _Note: Task 1 + 2는 TDD `tdd="true"` 지시에 따라 RED(test) → GREEN(feat)
 |------|------|-------------|
 | threat_flag: filesystem-write | state/commit.ts | Bun.spawn으로 git commit 호출 + writeFileSync로 임시파일 작성. cwd 파라미터를 caller가 제어 가능 → 02-06 applyPatch 호출 시 cwd 검증 필요 (path traversal 방지). 02-10 verification에서 cwd validation 추가 검토 권고. |
 | threat_flag: shell-metachar-passthrough | state/commit.ts | sanitize는 backtick/dollar/null만 제거. ANSI escape, BiDi unicode, Korean Hangul Jamo combining char 등은 통과. commit message에 들어가도 git log 파이프에서 추가 처리 시 위험은 낮으나 향후 message render 경로(예: web UI)가 추가되면 보충 sanitize 필요. |
+| threat_flag: hook-pattern-mismatch | .git/hooks/pre-commit | **APPLY-07의 `reset:*hard*` glob 패턴이 실제 `git reset --hard` reflog 메시지와 매칭되지 않음.** 경험적 확인 (본 session transcript + tmp repo로 검증): `git reset --hard HEAD~1`의 reflog는 `reset: moving to HEAD~1`이며 "hard" 문자열이 없다. `--hard` 플래그는 reflog text에 반영되지 않고, `--soft`/`--mixed`/`--hard` 모두 동일 템플릿. 즉 현재 hook은 `reset --hard` 감지 분기가 사실상 비활성. PLAN.md Task 3 + dispatcher가 명시한 패턴 그대로 구현했으므로 plan-spec 결함이며 코드 결함이 아님. **02-10 verification에서 명시 검증 + 패턴 수정 권고**: 안전한 대안은 `reset:*` (모든 reset 거부 — 가장 보수적), 또는 git config로 `core.logAllRefUpdates` 동작과 함께 reset 패턴을 더 정확히 탐지하는 방법 검토. rebase/rewrite 분기는 정상 동작 (`rebase*`, `*rewrite*` 패턴은 git 표준 reflog와 매칭). |
 
 ## User Setup Required
 
@@ -174,7 +175,7 @@ bash scripts/install-state-hook.sh
 
 - **02-04 state init script**: state/.gitignore가 이미 있으므로 conflict 없음. /.pending/, /.proposals/ 등 다른 디렉토리 추가 시 동일 패턴 사용.
 - **02-06 applyPatch**: import 경로 `state/commit` (혹은 `./commit`)에서 `{ buildMessage, commitWithMessage, type ApplyResult }` 사용 가능. cwd default '.'이면 production 코드는 cwd 인자 생략하면 됨. ApplyResult 타입을 02-06 proposePatch가 build하여 전달.
-- **02-10 verification**: hook smoke test 자동화 추가 권고 (state/ 미변경 commit 통과 + state/ 변경 + reset 시뮬레이션 시 거부). installer idempotency 자동 검증.
+- **02-10 verification**: hook smoke test 자동화 추가 권고 (state/ 미변경 commit 통과 + state/ 변경 + reset 시뮬레이션 시 거부). installer idempotency 자동 검증. **추가 우선순위**: `reset:*hard*` 패턴 결함 (Threat Flags 섹션 hook-pattern-mismatch 참조) — 경험적으로 `git reset --hard`가 hook을 우회하므로, 02-10에서 패턴을 `reset:*` 또는 정확한 reflog format에 맞춘 매칭으로 수정 후 명시 verification 추가 필요.
 - **TDD 게이트**: RED commit `b80a35c` (test) → GREEN commit `8d0d046` (feat) 순서대로 git log에 존재 → TDD gate 준수 확인.
 
 ## TDD Gate Compliance
