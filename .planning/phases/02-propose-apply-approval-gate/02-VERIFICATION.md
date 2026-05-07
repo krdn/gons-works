@@ -85,13 +85,13 @@ Ran 256 tests across 25 files. [2.84s]
 
 ## ROADMAP Phase 2 Success Criteria (5 items)
 
-| # | Criterion | Status | Evidence / Blocker |
-|---|-----------|--------|-------------------|
-| 1 | proposePatch unified diff + 5-key 인라인 legend visible | PARTIAL — 코드+UI markup PASS, 라이브 시각 BLOCKED | `tools/proposePatch.ts` jsdiff 출력 + `public/index.html` 5-key form (`y=apply n=reject e=edit d=diff toggle a=abort` 인라인 legend, 02-09 SUMMARY) — operator 가 브라우저로 proposePatch 카드 렌더 시각 확인 + 6 항목 체크 |
-| 2 | y → docker exec 먼저 → 성공 후 git commit (2PC 순서) | PASS (단위), BLOCKED (라이브 timestamp 비교) | `tools/applyPatch.test.ts` 2PC 순서 test + `tools/applyPatch.ts` makeDefaultDependencies APPLY_TEST_MODE 분기 (02-06 SUMMARY) — operator 가 test compose stack 위에서 라이브 docker events ts < git log ts 비교 |
-| 3 | docker fail → git commit 안 됨 + 이전 상태 롤백 | PASS (단위), BLOCKED (라이브) | `tools/applyPatch.test.ts` 의 fail rollback test (D-B3 역 docker 시도 envelope) — operator 가 `service: "non-existent-svc"` 시나리오로 outcome=rolled-back / git log Δ=0 라이브 확인 |
-| 4 | git log state/ body 에 user prompt + AI reasoning | PARTIAL — 양식 lock OK, live commit 부재 | `state/commit.ts buildMessage` 가 D-D1 양식 강제. `state/` 디렉토리 비어있음 (live `apply()` commit 0건). operator E2E 후 `cd state && git log --grep "^apply(" --pretty=fuller` 출력 붙여넣기 필요 |
-| 5 | /ship 으로 GitHub PR 생성 | BLOCKED — operator action | `/ship` 호출 + PR URL 기록은 operator 단계. 본 worktree 의 land 후 main 머지 완료 시 실행 |
+| # | Success Criteria | Status | Evidence / Blocker |
+|---|------------------|--------|-------------------|
+| Success Criteria #1 | proposePatch unified diff + 5-key 인라인 legend visible | PARTIAL — 코드+UI markup PASS, 라이브 시각 BLOCKED | `tools/proposePatch.ts` jsdiff 출력 + `public/index.html` 5-key form (`y=apply n=reject e=edit d=diff toggle a=abort` 인라인 legend, 02-09 SUMMARY) — operator 가 브라우저로 proposePatch 카드 렌더 시각 확인 + 6 항목 체크 |
+| Success Criteria #2 | y → docker exec 먼저 → 성공 후 git commit (2PC 순서) | PASS (단위), BLOCKED (라이브 timestamp 비교) | `tools/applyPatch.test.ts` 2PC 순서 test + `tools/applyPatch.ts` makeDefaultDependencies APPLY_TEST_MODE 분기 (02-06 SUMMARY) — operator 가 test compose stack 위에서 라이브 docker events ts < git log ts 비교 |
+| Success Criteria #3 | docker fail → git commit 안 됨 + 이전 상태 롤백 | PASS (단위), BLOCKED (라이브) | `tools/applyPatch.test.ts` 의 fail rollback test (D-B3 역 docker 시도 envelope) — operator 가 `service: "non-existent-svc"` 시나리오로 outcome=rolled-back / git log Δ=0 라이브 확인 |
+| Success Criteria #4 | git log state/ body 에 user prompt + AI reasoning | PARTIAL — 양식 lock OK, live commit 부재 | `state/commit.ts buildMessage` 가 D-D1 양식 강제. `state/` 디렉토리 비어있음 (live `apply()` commit 0건). operator E2E 후 `cd state && git log --grep "^apply(" --pretty=fuller` 출력 붙여넣기 필요 |
+| Success Criteria #5 | /ship 으로 GitHub PR 생성 | BLOCKED — operator action | `/ship` 호출 + PR URL 기록은 operator 단계. 본 worktree 의 land 후 main 머지 완료 시 실행 |
 
 ## AUDIT-02 grep 검증 (현재 상태)
 
@@ -192,13 +192,17 @@ IDEMPOTENT_OK
 
 ## PROD 안전성 — VERIFIED (autonomous)
 
-본 plan 의 자동화 단계는 `bun test` + `bunx tsc --noEmit` + `bash scripts/install-state-hook.sh` 만 실행했고, PROD (192.168.0.5) 호출은 0건. 라이브 검증은 D-A3 test compose stack (192.168.0.8 alpine 더미)에서 운영자가 별도 단계로 수행한다.
+본 plan 의 자동화 단계는 `bun test` + `bunx tsc --noEmit` + `bash scripts/install-state-hook.sh` + `ssh gon@192.168.0.5 'docker ps -a --filter name=test-svc'` (read-only) 만 실행했고, PROD 쓰기 호출은 0건. 라이브 쓰기 검증은 D-A3 test compose stack (192.168.0.8 alpine 더미)에서 운영자가 별도 단계로 수행한다.
 
-운영자 단계 사전 점검 (PLAN Step E cleanup 직전):
+PROD 안전성 점검 결과 (autonomous slot 완료 시점):
+
 ```bash
-ssh gon@192.168.0.5 'docker ps -a --filter name=test-svc'
-# 기대: empty (PROD 에 test 컨테이너 부재)
+$ ssh gon@192.168.0.5 'docker ps -a --filter name=test-svc --format "table {{.Names}}\t{{.Status}}"'
+NAMES     STATUS
+# (header 만 출력 — test-svc* 컨테이너 0건 → PROD 깨끗 PASS)
 ```
+
+운영자 단계 종료 후 재점검 (Step E cleanup 직후) 명령은 동일.
 
 ## Outstanding Items (Operator Action)
 
