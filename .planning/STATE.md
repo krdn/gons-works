@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 2 — Propose/Apply with Approval Gate (Wave 1 실행 시작 — 02-02/03/04 병렬 dispatch)
+**Current focus:** Phase 2 — Propose/Apply with Approval Gate (Wave 1 완료, Wave 2 시작 — 02-05 → 02-06 sequential)
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 1 실행 중 (02-02/03/04 병렬)
-Plan: 1 of 10 PASS (D-E1) / 9 plans pending (02-02..02-10)
-Status: Wave 0 (D-E1) 5/5 PASS 완료. Wave 1 dispatch — 02-02 approval/store / 02-03 state/commit / 02-04 init-state-compose 병렬 실행. 각 plan은 독립 파일 세트 수정으로 worktree 충돌 없음.
-Last activity: 2026-05-07 — `/gsd-execute-phase 2` 시작. Wave 1 (02-02/03/04) 3개 plan worktree isolation으로 병렬 dispatch.
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 2 시작 (02-05 dispatch 예정)
+Plan: 4 of 10 PASS (D-E1, 02-02, 02-03, 02-04) / 6 plans pending (02-05..02-10)
+Status: Wave 1 모두 완료 — 02-02 approval/store(14 PASS), 02-03 state/commit + APPLY-07 hook(17 PASS), 02-04 4-stack mirror + docker-context test(3+3 PASS). 총 34/34 PASS. 192/196 PASS overall (4 skip). PROD 깨끗(test container/network 0개). plan hotfix 2건(D-04 lock + Option A 4-stack scope) + FRICTION F-3/F-4 lock-in.
+Last activity: 2026-05-07 — Wave 1 완료 후 02-06 PLAN에 PROD safety belt-and-suspenders carry-forward 명시 추가. Wave 2 (02-05 proposePatch + system-prompt → 02-06 applyPatch 2PC) sequential dispatch 진행.
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
