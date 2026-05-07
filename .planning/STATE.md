@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — CONTEXT gathered, ready for plan-phase
-Plan: 0 of TBD
-Status: Phase 1 ✅ code-complete + 22/22 REQ-IDs unit/integration PASS / Phase 2 discuss 종료 — 14 결정 + 1 게이팅 lock (D-A1..A5, D-B1..B3, D-C1..C4, D-D1..D4, D-E1)
-Last activity: 2026-05-07 — Phase 2 discuss 완료: 4 area + 1 post-advisor area, CONTEXT.md + DISCUSSION-LOG.md 작성
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — D-E1 게이트 FAIL, 02-02 이후 보류
+Plan: 1 executed (1 FAIL — D-E1 lock-in) / 10 total
+Status: Phase 2 plan 02-01 (D-E1 pre-execute gate) 실행 완료 / FAIL — Phase 1 carry-forward 2건 + Voyage 함정 1건 lock-in (FRICTION F-1/F-2/F-3). 02-02..02-10 진입 차단. Phase 1 hotfix 결정 대기.
+Last activity: 2026-05-07 — Plan 02-01 라이브 smoke 실행: Step A Voyage 회전 PASS (1024 dim), Criteria #1 FAIL (400 invalid_request_error req_011Canaq7qP5ZbJXfECrMDt5), Criteria #2/#3 BLOCKED, Criteria #4 audit DB PASS (13 rows). 02-01-SMOKE-LOG.md + FRICTION.md commit f886d54.
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
