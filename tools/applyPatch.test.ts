@@ -118,10 +118,11 @@ describe("applyPatch — D-C4 marker reject", () => {
 })
 
 describe("applyPatch — happy path", () => {
-  test("happy path 무 fileEdit (compose restart) → outcome=applied, marker 정리", async () => {
+  test("happy path 무 fileEdit (compose restart) → outcome=applied, marker 정리, allowEmpty=true 전달", async () => {
     // sshExec / sshWriteFile / git mock — 모두 success
     let dockerCalled = 0
     let gitCommitCalled = 0
+    let commitAllowEmpty: boolean | undefined = undefined
     dependencies.sshExec = async () => {
       dockerCalled++
       return { exit: 0, stdout: "", stderr: "" }
@@ -129,8 +130,11 @@ describe("applyPatch — happy path", () => {
     dependencies.sshWriteFile = async () => ({ exit: 0, stderr: "" })
     dependencies.sshReadFile = async () => ({ exit: 0, stdout: "(unused — no fileEdit)", stderr: "" })
     dependencies.gitAdd = async () => {}
-    dependencies.commitWithMessage = async () => {
+    // v1.1 hotfix (F-9) regression test: lifecycle-only(fileEdit 없음)면 allowEmpty=true 전달 검증.
+    // production code에서 staged 변경 0건일 때 git commit 실패 방지하는 핵심 wire.
+    dependencies.commitWithMessage = async (_msg, _nonce, _cwd, allowEmpty) => {
       gitCommitCalled++
+      commitAllowEmpty = allowEmpty
     }
     dependencies.gitRevParseHead = async () => "abc1234"
 
@@ -152,10 +156,44 @@ describe("applyPatch — happy path", () => {
     expect(result.outcome.command).toBe("compose restart")
     expect(dockerCalled).toBe(1)
     expect(gitCommitCalled).toBe(1)
+    // F-9 fix lock: lifecycle-only는 반드시 allowEmpty=true (caller→commitWithMessage wire).
+    expect(commitAllowEmpty).toBe(true)
 
     // marker 정리 검증 — .gitkeep만 남음
     const remaining = readdirSync(PENDING_DIR).filter((f) => f !== ".gitkeep")
     expect(remaining).toEqual([])
+  })
+
+  test("v1.1 hotfix (F-9) regression: lifecycle-only면 commitWithMessage가 staged 0에서도 성공해야 → outcome=applied (rolled-back 아님)", async () => {
+    // production-realistic mock: commitWithMessage가 staged 0 + allowEmpty=false면 throw, allowEmpty=true면 OK.
+    // 이는 v1.1 hotfix 이전 코드에서 lifecycle-only 명령이 항상 rolled-back 되던 결함의 회귀 방지.
+    let actualOutcome: string = "unknown"
+    dependencies.sshExec = async () => ({ exit: 0, stdout: "", stderr: "" })
+    dependencies.sshWriteFile = async () => ({ exit: 0, stderr: "" })
+    dependencies.sshReadFile = async () => ({ exit: 0, stdout: "(unused)", stderr: "" })
+    dependencies.gitAdd = async () => {}
+    dependencies.commitWithMessage = async (_msg, _nonce, _cwd, allowEmpty) => {
+      // staged 0 + allowEmpty false 이면 production이 항상 실패 → 결함 재현.
+      if (allowEmpty !== true) {
+        throw new Error("git commit 실패 (exit 1): nothing to commit, working tree clean")
+      }
+      // allowEmpty=true면 commit 성공 (v1.1 hotfix 동작).
+    }
+    dependencies.gitRevParseHead = async () => "fix9876"
+
+    const proposal = makeProposal({ command: "compose start", service: "test-svc-a" })
+    const result = await applyPatch(
+      {
+        proposal,
+        decision: { type: "approved" },
+        userPrompt: "lifecycle-only start",
+        remoteComposePath: TEST_REMOTE_PATH,
+      },
+      {},
+    )
+    actualOutcome = result.outcome.type
+    // v1.1 hotfix가 작동하면 applied. 작동하지 않으면 rolled-back (회귀).
+    expect(actualOutcome).toBe("applied")
   })
 
   test("happy path with fileEdit (state 미러 + SSH cat > + docker + git commit)", async () => {

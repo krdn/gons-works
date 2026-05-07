@@ -392,6 +392,20 @@
       // 보안 원칙: 모든 외부 데이터(LLM 응답, tool args, error fix, drift list)는
       // textContent / createTextNode / createElement만 사용해 DOM 추가.
       // raw HTML 파싱(문자열 → DOM)은 사용하지 않음 (T-01-08-01/02 차단, FRICTION #9 lesson).
+      //
+      // v1.1 hotfix (F-11, 2026-05-07): 브라우저 탭별 sessionId 자동 생성.
+      // sessionApiCalls 30회 hard cap이 모든 탭/요청에 공유되던 문제 해결.
+      // POST /chat에는 form body의 hidden input "session-id"로 전달,
+      // GET /chat-stream(SSE)은 server가 그 값을 query string으로 echo (custom header 미지원).
+      window.__sessionId = (window.crypto && window.crypto.randomUUID)
+        ? window.crypto.randomUUID()
+        : "session-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+      // htmx:configRequest로 모든 htmx 요청(POST /chat 등)에 session-id 부착.
+      document.body.addEventListener("htmx:configRequest", function (evt) {
+        if (evt.detail && evt.detail.parameters) {
+          evt.detail.parameters["session-id"] = window.__sessionId;
+        }
+      });
       (function () {
         var outputEl = document.getElementById("output");
         var driftEl = document.getElementById("drift-banner");

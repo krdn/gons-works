@@ -317,7 +317,10 @@ app.post("/chat", async (c) => {
   const body = await c.req.parseBody()
   const prompt = String(body.prompt ?? "").trim()
   if (prompt === "") return c.json({ error: "prompt 비어있음" }, 400)
-  const url = `/chat-stream?prompt=${encodeURIComponent(prompt)}`
+  // v1.1 hotfix (F-11): 클라이언트가 x-session-id 헤더 또는 body의 session-id 필드로 전달.
+  // EventSource는 custom header 미지원 → query string으로 전파.
+  const sessionId = String(body["session-id"] ?? c.req.header("x-session-id") ?? "default")
+  const url = `/chat-stream?prompt=${encodeURIComponent(prompt)}&session-id=${encodeURIComponent(sessionId)}`
   return c.html(
     `<div hx-ext="sse" sse-connect="${url}" hx-swap="none"></div>`,
   )
@@ -327,7 +330,9 @@ app.post("/chat", async (c) => {
 // READ-04 + READ-05 + UI-04 + LOOP-06 모두 이 핸들러에서 wire.
 app.get("/chat-stream", (c) => {
   const prompt = c.req.query("prompt") ?? ""
-  const sessionId = c.req.header("x-session-id") ?? "default"
+  // v1.1 hotfix (F-11): EventSource는 custom header 미지원 → query string ?session-id=... 우선,
+  // 헤더는 fallback (curl 검증 등). default는 backward-compat.
+  const sessionId = c.req.query("session-id") ?? c.req.header("x-session-id") ?? "default"
 
   return streamSSE(
     c,
@@ -507,9 +512,15 @@ if (import.meta.main) {
 
 // PITFALL #16: 127.0.0.1 bind only — 0.0.0.0/외부 노출 절대 금지.
 // Bun.serve는 export default { hostname, port, fetch } 시그니처 사용.
+//
+// v1.1 hotfix (F-10, 2026-05-07): Bun.serve 기본 idleTimeout=10s가 02-07 30s keep-alive
+// interval보다 짧아 SSE 연결이 첫 keep-alive 도달 전에 끊김. 라이브 검증에서 발견.
+// 0 = idle timeout 비활성화 (장시간 SSE + 2분 approval 대기를 안전하게 유지).
+// LOOP-06 60s SSE chunk watchdog은 별도 wire로 작동하므로 idle timeout 비활성화 안전.
 export default {
   hostname: "127.0.0.1",
   port: Number(process.env.PORT ?? 3000),
+  idleTimeout: 0,
   fetch: app.fetch,
 }
 

@@ -123,7 +123,7 @@ export interface ApplyDependencies {
     signal?: AbortSignal,
   ): Promise<SshExecResult>
   gitAdd(paths: string[], cwd?: string): Promise<void>
-  commitWithMessage(message: string, nonce: string, cwd?: string): Promise<void>
+  commitWithMessage(message: string, nonce: string, cwd?: string, allowEmpty?: boolean): Promise<void>
   gitRevParseHead(cwd?: string): Promise<string>
 }
 
@@ -308,7 +308,7 @@ export function makeDefaultDependencies(): ApplyDependencies {
       sshWriteFile: makeTestModeSshWriteFile(),
       sshReadFile: makeTestModeSshReadFile(),
       gitAdd: makeDefaultGitAdd(),
-      commitWithMessage: (msg, nonce, cwd) => commitWithMessage(msg, nonce, cwd),
+      commitWithMessage: (msg, nonce, cwd, allowEmpty) => commitWithMessage(msg, nonce, cwd, allowEmpty),
       gitRevParseHead: makeDefaultGitRevParseHead(),
     }
   }
@@ -586,7 +586,11 @@ export async function applyPatch(
         await dependencies.gitAdd(addPaths, ".")
       }
 
-      await dependencies.commitWithMessage(message, nonce, ".")
+      // v1.1 hotfix (F-9): lifecycle-only 명령(restart/start/stop 등)은 fileEdit 없음 → state/ 변경 0.
+      // D-D4 lock(applied/rolled-back만 git commit)을 만족하려면 audit-only commit이 필요. addPaths가 비었으면
+      // --allow-empty로 빈 commit 허용 (commit message body의 D-D1 양식이 audit log 역할 수행).
+      const allowEmpty = addPaths.length === 0
+      await dependencies.commitWithMessage(message, nonce, ".", allowEmpty)
 
       // (vi) marker delete + outcome=applied.
       deleteMarker(nonce)

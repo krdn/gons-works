@@ -299,3 +299,209 @@ git reset --hard HEAD~1   # reflog: "reset: moving to HEAD~1"  ← hard/soft 구
 - Plan 의 `checkpoint:human-action` task 가 orchestrator prompt 의 deliverable 과 충돌할 때의 autonomous-first 분리 패턴 lock (Phase 2 F-8)
 - Hook script 작성 시 `git reflog` `%gs` 출력 sample 사전 채취 + plan-check 룰 (Phase 2 F-5)
 
+
+---
+
+## F-9 — applyPatch lifecycle-only 명령(restart/start/stop 등)이 항상 rolled-back
+
+**Status:** RESOLVED 2026-05-07 (v1.1 hotfix)
+**Severity:** HIGH (Phase 2 7-command 중 fileEdit 없는 5개 모두 영향, 라이브 검증으로만 발견)
+**Discovered:** 2026-05-07 (라이브 SC#1/2/4 검증 시점, audit DB primary source)
+
+**Symptom:**
+- LLM이 proposePatch tool 호출 → user `y` approval → applyPatch 진입
+- docker `compose restart test-svc-a` 정상 실행 (gons-test-svc-a 재시작 확인)
+- 그러나 audit DB id=156: `outcome="rolled-back", reason="git commit 실패 (exit 1):"`
+- D-B3 reverse docker 자동 시도 + 두 번째 restart 발생 (의도하지 않은 부작용)
+
+**Root cause:**
+- D-B1 7-command 중 `compose restart/start/stop/up -d/down/logs/ps`는 **fileEdit 없이 docker 명령만** 실행
+- applyPatch는 fileEdit 없으면 `git add` 호출 0회 → state/ staged 변경 0건
+- `state/commit.ts commitWithMessage`가 `git commit -F msg -- state/` 실행 → staged 0건이라 exit 1 ("nothing to commit, working tree clean")
+- D-B3 분기 진입 → 역 docker 자동 시도 + outcome=rolled-back
+
+**Why missed in unit tests:**
+- `tools/applyPatch.test.ts`의 mock `commitWithMessage`가 무조건 성공 (`async () => { gitCommitCalled++ }`)
+- production behavior(staged 0건 → throw) 모사 안 함 → 결함이 unit test로 감지 안 됨
+
+**Fix (v1.1 hotfix):**
+- `state/commit.ts commitWithMessage`에 `allowEmpty?: boolean` 4번째 파라미터 추가 (default false)
+- `tools/applyPatch.ts`에서 `addPaths.length === 0` (lifecycle-only) 흐름이면 `allowEmpty=true` 전달
+- D-D4 lock(applied/rolled-back만 git commit) 만족: lifecycle-only도 audit log commit 정상 생성 (commit message body의 D-D1 양식 4 필드가 audit 역할)
+- 회귀 방지 unit test 2건 추가:
+  1. `tools/applyPatch.test.ts`: lifecycle-only happy path가 `commitAllowEmpty=true` 전달하는지 검증 + production-realistic mock으로 outcome=applied 보장
+  2. `state/commit.test.ts`: `allowEmpty=true`/false 두 분기 + 빈 commit body의 Nonce 라인 grep 검증
+
+**Live re-verification (hotfix 적용 후):**
+- commit `add0eb455...` 정상 생성: `apply(news): compose restart test-svc-a` + Nonce + 4 body 필드
+- audit DB id=158/159 turn rows: tool_name=applyPatch, ok=1, outcome=applied
+- D-B3 분기는 의도된 git fail simulation에서만 정상 발화 (Step 6, audit id=161)
+
+**Carry-forward:**
+- v1.2 후속: system-prompt에 `APPLY_TEST_MODE=1 시 test-svc-* 명명 허용` 추가하여 라이브 검증 자동화
+- D-D4 양식 자체는 v1.0 이후 변경 없음 — `--allow-empty` 추가는 audit log 보존 범위만 확장
+
+---
+
+## F-10 — Bun.serve 기본 idleTimeout=10s가 30s keep-alive보다 짧아 SSE 끊김
+
+**Status:** RESOLVED 2026-05-07 (v1.1 hotfix)
+**Severity:** HIGH (라이브 5-key UX 차단 — approval 대기 도중 SSE 끊김)
+**Discovered:** 2026-05-07 (브라우저 5-key 시도 시 `source.onerror` + audit DB로 backend 정상 확인)
+
+**Symptom:**
+- 브라우저 console: `htmx.min.js:1 [object Event]` + `sse.js:201 source.onerror`
+- curl `/chat-stream` 요청은 정상 (60s timeout 내 모든 SSE event 도달)
+- server log: `[Bun.serve]: request timed out after 10 seconds. Pass idleTimeout to configure.`
+
+**Root cause:**
+- Bun.serve의 기본 `idleTimeout = 10` (10초)
+- 02-07 plan에서 추가한 `KEEP_ALIVE_INTERVAL_MS = 30_000` (30초 keep-alive comment)
+- 첫 keep-alive 도달 (30s) 전에 idle timeout (10s)이 트리거 → SSE wire 끊김
+- approval 대기(2분 expiresAt)는 더 긴 시간 SSE를 유지해야 하므로 더 큰 영향
+
+**Why missed in unit tests:**
+- `agent/loop.test.ts`의 keep-alive test는 `setTimeout` mock 사용 → 실제 Bun.serve와 wire 안 됨
+- 브라우저 EventSource + Bun.serve 조합은 라이브 환경에서만 발견 가능
+- curl 검증은 cli-side timeout이 60s라 10s idle이 보이지 않음 (curl 자체가 데이터 흐름을 받음)
+
+**Fix (v1.1 hotfix):**
+- `src/server.ts` `export default { hostname, port, fetch }` → `export default { hostname, port, idleTimeout: 0, fetch }`
+- `idleTimeout: 0` = 비활성화 (장시간 SSE + 2분 approval 대기 안전 유지)
+- LOOP-06 60s SSE chunk watchdog은 별도 wire로 작동 (agent/sse.ts createChunkWatchdog) → idle timeout 비활성화 안전
+
+**Live re-verification (hotfix 적용 후):**
+- 사용자 브라우저 retry 권장 (server 재시작 필요)
+- curl SSE 정상 (60s+ 유지 확인)
+
+**Carry-forward:**
+- v1.2 후속: idleTimeout: 0 대신 명시적 큰 값 (예: 600 = 10분)으로 전환 검토 — keep-alive가 끊겨도 server-side cleanup이 필요할 수 있음
+- Bun.serve 옵션 변경 시 frontend EventSource 동작 라이브 검증 필수 (curl만으로 cover 안 됨)
+
+---
+
+## F-11 — sessionId=default 다중 요청 누적으로 30회 한도 즉시 hit (라이브 발견)
+
+**Status:** RESOLVED 2026-05-07 (v1.1 hotfix)
+**Severity:** HIGH (브라우저 + curl 검증이 즉시 막힘)
+**Discovered:** 2026-05-07 (라이브 5-key UI 시도 시점)
+
+**Symptom:**
+- server 재시작 후 ~7회 prompt 호출만으로 audit DB가 `세션 API 호출 한도 초과 (30회), sessionId=default` 30+ 행 채움
+- 브라우저 EventSource: chat-stream status=200 + pending → 데이터 미도달 → onerror
+
+**Root cause:**
+- src/server.ts `chat-stream` route: `sessionId = c.req.header("x-session-id") ?? "default"`
+- POST /chat에 sessionId 부착 안 함 → 모든 요청이 `default` 누적
+- LOOP-03 `MAX_API_CALLS_PER_SESSION=30` hard cap이 모든 탭/curl/automation에 공유됨
+
+**Fix (v1.1 hotfix):**
+- public/index.html: 페이지 로드 시 `window.__sessionId = crypto.randomUUID()` 자동 생성
+- public/index.html: `htmx:configRequest` hook으로 모든 htmx 요청에 `session-id` form parameter 부착
+- src/server.ts POST /chat: `body["session-id"]`를 우선 읽어 sse-connect URL의 query string으로 전파 (EventSource는 custom header 미지원)
+- src/server.ts GET /chat-stream: `c.req.query("session-id") ?? c.req.header("x-session-id") ?? "default"` 우선순위
+- 향후 curl 검증은 `?session-id=verify-${nonce}` query 부착 권장
+
+**Live re-verification:**
+- 사용자 브라우저 새로고침 후 chat-stream 정상 200 + EventStream에 drift/text-delta/final 도달 확인 (Network tab 캡처)
+
+**Carry-forward (v1.2):**
+- localStorage에 sessionId 저장 → 브라우저 새로고침 시 동일 세션 유지 (현재는 매 reload마다 새 UUID)
+- 다중 탭 시 탭별 분리 vs 사용자별 통합 결정 필요
+- audit DB events에 sessionId 컬럼 추가하여 isolation 디버깅 강화
+
+---
+
+## F-12 — public/index.html SSE handler가 named event를 DOM에 render 안 함 (Phase 1 carry-forward)
+
+**Status:** KNOWN, deferred to v1.2
+**Severity:** HIGH (SC#1 라이브 시각 검증 BLOCKED — SSE wire는 정상이나 텍스트 화면 미표시)
+**Discovered:** 2026-05-07 (F-11 fix 후 브라우저 재검증 시)
+
+**Symptom:**
+- Network tab Response/EventStream에 drift / text-delta / final event 정상 도착
+- 그러나 DOM의 `#output` 영역이 빈 placeholder ("운영자 질문을 입력하면 서비스 상태와 로그를 분석합니다.") 그대로
+- `htmx:sseMessage` listener가 명명된 SSE event(`event: text-delta` 등)를 dispatch 안 하는 것으로 추정
+
+**Root cause (가설):**
+- public/index.html line 434: `document.body.addEventListener("htmx:sseMessage", function (evt) { switch (evt.detail.type) { case "text-delta": ... } })`
+- htmx-ext-sse@2.2.4가 `event: text-delta`처럼 named event에는 `htmx:sseMessage`를 fire 안 하는 것으로 추정 (default unnamed event만 fire)
+- named events는 `sse-swap="text-delta"` 속성 또는 `htmx:sseBeforeMessage` hook 또는 별도 EventSource 직접 attach 필요
+
+**Phase 1 carry-forward:**
+- 02-01-SMOKE-LOG-2.md: SSE event 시퀀스 (drift/text-delta/final)는 wire 검증만 했고 DOM render 시각 확인 X
+- 즉 본 결함은 Phase 1 (01-08 public/index.html 작성) 시점부터 존재했으나 verification gap으로 Phase 2까지 미발견
+
+**Fix proposal (v1.2):**
+- 옵션 A: `sse-swap` 속성을 사용한 declarative 패턴 (htmx-ext-sse 권장)
+- 옵션 B: `htmx:sseBeforeMessage` listener로 named event capture
+- 옵션 C: htmx-ext-sse 우회하여 EventSource 직접 새 코드 + addEventListener('text-delta', ...) 
+
+옵션 A가 htmx 디자인 철학에 부합. 그러나 textContent-only 보안 lock 유지 필요 (innerHTML XSS gate 보존).
+
+**Verification gap lesson (F-12에서 확정):**
+- v1.0+v1.1까지 252+ unit tests + curl wire 검증 통과했으나 라이브 브라우저 DOM render는 처음 검증
+- v1.2 Playwright 자동화 필수 — Phase 2 verification protocol에 포함
+
+---
+
+## F-13 — Verification process gap: live verification revealed 4 defects unit tests didn't catch
+
+**Status:** Process improvement, deferred to v1.2 verification protocol
+**Severity:** MEDIUM (process 차원, code 결함 아님)
+**Discovered:** 2026-05-07 cumulative finding
+
+**Summary:**
+Phase 2 v1.0 (252 unit tests pass + tsc clean)으로는 production-ready 판정했으나 라이브 verification에서 4건 defect 발견:
+- F-9 lifecycle commit (audit DB로 발견)
+- F-10 Bun idleTimeout (server log 메시지로 발견)
+- F-11 sessionId 누적 (audit DB error_envelope 패턴으로 발견)
+- F-12 SSE DOM render (브라우저 Network/EventStream 비교로 발견)
+
+**Pattern:** Unit test mock이 production behavior와 모사 분리됨 → wire 통합 + 라이브 환경에서만 보이는 defect 다수.
+
+**v1.2 protocol 개선 제안:**
+1. Playwright E2E 추가 — 모든 SC#1~5를 자동 라이브 검증 (브라우저 + LLM in loop 포함)
+2. Mock realism 강제 — `commitWithMessage` mock이 production과 동일한 throw 조건 모사
+3. Audit DB primary source 우선 — SSE wire 끊김 시 audit DB가 ground truth
+4. Verification 절차에 server restart 룰 — sessionApiCalls 누적 회피
+5. Browser visual checkpoint 의무 — wire 검증만으론 SC#1 PASS 불가
+
+
+---
+
+## F-14 — applyPatch audit commit이 unstaged working-tree pollution 캡처 (AUDIT-02 integrity 위반)
+
+**Status:** ACCEPTED v1.1 trade-off, fix scheduled for v1.2
+**Severity:** HIGH (audit log integrity 일시적 손상)
+**Discovered:** 2026-05-07 (v1.1 hotfix 라이브 검증 도중 실시간 발견)
+
+**Symptom:**
+- audit commit `add0eb4 apply(news): compose restart test-svc-a` body가 `Diff-Summary: no-file-change` 명시
+- 그러나 `git show add0eb4 -- state/`는 76 lines diff 표시 (hotfix 변경 `state/commit.ts` + `state/commit.test.ts` 캡처됨)
+- 즉 **audit log message가 production code 변경을 lifecycle-only audit으로 속여 묻음**
+
+**Mechanism (root cause):**
+- `state/commit.ts commitWithMessage`의 spawn argv: `["git", "commit", "-F", msg, "--", "state/"]`
+- pathspec `-- state/`가 **staged + unstaged working-tree 변경을 모두 캡처**
+- v1.1 hotfix 작성 중 사용자가 `state/commit.ts` 편집 후 server 재시작 → 그 사이 사용자가 mutating 질의 → applyPatch가 `git commit -- state/` 실행 → **편집된 working tree까지 commit에 묻음**
+- v1.0/v1.1의 `applyPatch.ts`는 `addPaths`를 명시 추적하지만 `commitWithMessage`에 그 list를 전달하지 않음 → pathspec이 항상 `state/` 디렉토리 전체
+
+**v1.0 unit tests에서 미발견 이유:**
+- 테스트 임시 git repo는 항상 working tree clean에서 시작 → unstaged pollution scenario 미모사
+- production은 사용자가 `state/`를 편집할 수 있는 환경 → 라이브에서만 발생
+
+**v1.2 Fix proposal:**
+1. `applyPatch.ts`의 `addPaths`를 `commitWithMessage`에 전달 → spawn argv pathspec을 `addPaths` 그대로 사용 (lifecycle-only는 빈 array → pathspec 없이 `--allow-empty`만)
+2. 또는 audit commit 전에 `git stash --keep-index` → audit commit → `git stash pop`으로 working tree 격리
+3. 또는 `git commit-tree`로 직접 새 tree object 생성하여 staged만 정확히 commit
+
+**Impact:**
+- 현 시점 `add0eb4` audit commit은 hotfix 변경을 묻고 있어 grep `apply(news):` + `Diff-Summary: no-file-change` 패턴이 일치하지만 실제 diff와 모순
+- 다른 audit commit들은 영향 없음 (이번 사고는 사용자가 편집 → 서버 재시작 사이의 race)
+- AUDIT-02 grep은 commit message 양식 lock만 검증하고 actual diff는 검증 안 함 → 일시적 partial PASS
+
+**Trade-off acceptance (옵션 B):**
+- v1.1 PR에 `add0eb4` 그대로 land (revert는 추가 noise)
+- F-14 FRICTION 명시 + v1.2 backlog 추가
+- 운영자에게 명확히 알림: "v1.1 시점의 audit log는 unstaged pollution 위험 — v1.2 fix까지 라이브 환경에서 `state/` 편집 + applyPatch 동시 실행 회피"
