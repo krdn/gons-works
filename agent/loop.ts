@@ -165,13 +165,18 @@ export function estimateTokens(messages: Anthropic.MessageParam[]): number {
  * threshold 초과 시 첫 message(보통 user system context) + 마지막 6 messages만 유지.
  *
  * 7 이하 messages면 token 초과해도 그대로 (정보 손실 막음).
+ *
+ * F-1 fix (Phase 2 D-E1 carry-back, plan 01-10): 항상 새 array를 반환한다.
+ * caller가 `messages.length=0; messages.push(...compacted)` 패턴으로 in-place reset할 때,
+ * 이전 구현은 early-return 분기에서 입력과 동일 ref를 반환하여 array aliasing으로 인해
+ * messages가 빈 배열이 되었다 (다음 callWithFallback에서 400 invalid_request_error).
  */
 export function compactHistory(
   messages: Anthropic.MessageParam[],
   threshold = HISTORY_TOKEN_THRESHOLD,
 ): Anthropic.MessageParam[] {
-  if (estimateTokens(messages) < threshold) return messages
-  if (messages.length <= 7) return messages
+  if (estimateTokens(messages) < threshold) return [...messages]
+  if (messages.length <= 7) return [...messages]
   return [messages[0]!, ...messages.slice(-6)]
 }
 
@@ -393,9 +398,14 @@ export async function iterate(prompt: string, opts: IterateOpts): Promise<void> 
       }
 
       // LOOP-05 history compaction (in-place 갱신)
+      // F-1 (plan 01-10): compactHistory가 항상 새 array를 반환하도록 변경되어 aliasing 안전.
+      // defense-in-depth: 빈 배열로 reset되는 경우(향후 회귀) 즉시 throw하여 silent 400 회피.
       const compacted = compactHistory(messages)
       messages.length = 0
       messages.push(...compacted)
+      if (messages.length === 0) {
+        throw new Error("internal: messages reset to empty after compactHistory (F-1 회귀 의심)")
+      }
 
       if (response.stop_reason === "end_turn" || !assistantHasToolUse) break
     }
