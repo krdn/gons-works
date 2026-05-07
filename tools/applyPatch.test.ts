@@ -395,6 +395,127 @@ describe("applyPatch — (v) git commit 실패 D-B3 역 docker", () => {
     expect(remaining).toEqual([])
   })
 
+  test("D-B3 매핑: 'compose down' → 'compose up -d' (역방향)", async () => {
+    let sshExecCalls: string[] = []
+    dependencies.sshReadFile = async () => ({ exit: 0, stdout: "(unused)", stderr: "" })
+    dependencies.sshWriteFile = async () => ({ exit: 0, stderr: "" })
+    dependencies.sshExec = async (cmd: string) => {
+      sshExecCalls.push(cmd)
+      return { exit: 0, stdout: "", stderr: "" }
+    }
+    dependencies.gitAdd = async () => {}
+    dependencies.commitWithMessage = async () => {
+      throw new Error("git commit 실패")
+    }
+
+    const proposal = makeProposal({ command: "compose down", service: "news-prod-app" })
+    const result = await applyPatch(
+      {
+        proposal,
+        decision: { type: "approved" },
+        userPrompt: "test",
+        remoteComposePath: TEST_REMOTE_PATH,
+      },
+      {},
+    )
+
+    expect(result.outcome.type).toBe("rolled-back")
+    if (result.outcome.type !== "rolled-back") return
+    expect(result.outcome.rollback_command).toContain("compose up -d")
+    expect(result.outcome.rollback_command).toContain("news-prod-app")
+    expect(result.outcome.rollback_ok).toBe(true)
+    expect(sshExecCalls[0]).toContain("compose down")
+    expect(sshExecCalls[1]).toContain("compose up -d")
+  })
+
+  test("D-B3 매핑: 'compose stop' → 'compose start' (역방향)", async () => {
+    let sshExecCalls: string[] = []
+    dependencies.sshReadFile = async () => ({ exit: 0, stdout: "(unused)", stderr: "" })
+    dependencies.sshWriteFile = async () => ({ exit: 0, stderr: "" })
+    dependencies.sshExec = async (cmd: string) => {
+      sshExecCalls.push(cmd)
+      return { exit: 0, stdout: "", stderr: "" }
+    }
+    dependencies.gitAdd = async () => {}
+    dependencies.commitWithMessage = async () => {
+      throw new Error("git commit 실패")
+    }
+
+    const proposal = makeProposal({ command: "compose stop", service: "news-prod-app" })
+    const result = await applyPatch(
+      {
+        proposal,
+        decision: { type: "approved" },
+        userPrompt: "test",
+        remoteComposePath: TEST_REMOTE_PATH,
+      },
+      {},
+    )
+
+    expect(result.outcome.type).toBe("rolled-back")
+    if (result.outcome.type !== "rolled-back") return
+    expect(result.outcome.rollback_command).toContain("compose start")
+    expect(sshExecCalls[1]).toContain("compose start")
+  })
+
+  test("D-B3 매핑: 'compose restart' → 'compose restart' (idempotent)", async () => {
+    let sshExecCalls: string[] = []
+    dependencies.sshReadFile = async () => ({ exit: 0, stdout: "(unused)", stderr: "" })
+    dependencies.sshWriteFile = async () => ({ exit: 0, stderr: "" })
+    dependencies.sshExec = async (cmd: string) => {
+      sshExecCalls.push(cmd)
+      return { exit: 0, stdout: "", stderr: "" }
+    }
+    dependencies.gitAdd = async () => {}
+    dependencies.commitWithMessage = async () => {
+      throw new Error("git commit 실패")
+    }
+
+    const proposal = makeProposal({ command: "compose restart", service: "news-prod-app" })
+    const result = await applyPatch(
+      {
+        proposal,
+        decision: { type: "approved" },
+        userPrompt: "test",
+        remoteComposePath: TEST_REMOTE_PATH,
+      },
+      {},
+    )
+
+    expect(result.outcome.type).toBe("rolled-back")
+    if (result.outcome.type !== "rolled-back") return
+    expect(result.outcome.rollback_command).toContain("compose restart")
+    expect(result.outcome.rollback_ok).toBe(true)
+    // 양쪽 호출 모두 'compose restart'여야 함 (idempotent)
+    expect(sshExecCalls[0]).toContain("compose restart")
+    expect(sshExecCalls[1]).toContain("compose restart")
+  })
+
+  test("D-B3 매핑: 'compose logs --tail=200' → null (read-only, rollback_command=undefined)", async () => {
+    dependencies.sshReadFile = async () => ({ exit: 0, stdout: "(unused)", stderr: "" })
+    dependencies.sshExec = async () => ({ exit: 0, stdout: "logs output", stderr: "" })
+    dependencies.gitAdd = async () => {}
+    dependencies.commitWithMessage = async () => {
+      throw new Error("git commit 실패")
+    }
+
+    const proposal = makeProposal({ command: "compose logs --tail=200", service: "news-prod-app" })
+    const result = await applyPatch(
+      {
+        proposal,
+        decision: { type: "approved" },
+        userPrompt: "logs",
+        remoteComposePath: TEST_REMOTE_PATH,
+      },
+      {},
+    )
+
+    expect(result.outcome.type).toBe("rolled-back")
+    if (result.outcome.type !== "rolled-back") return
+    expect(result.outcome.rollback_command).toBeUndefined()
+    expect(result.outcome.rollback_ok).toBeUndefined()
+  })
+
   test("command='compose ps' 시 git commit 실패 → rollback_command=undefined (read-only, 역 불필요)", async () => {
     dependencies.sshReadFile = async () => ({ exit: 0, stdout: "(unused)", stderr: "" })
     dependencies.sshExec = async () => ({ exit: 0, stdout: "ps output", stderr: "" })
