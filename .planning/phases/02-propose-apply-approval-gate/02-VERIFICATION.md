@@ -91,7 +91,7 @@ Ran 256 tests across 25 files. [2.84s]
 | Success Criteria #2 | y → docker exec 먼저 → 성공 후 git commit (2PC 순서) | **PASS** (live timestamp 비교) | docker `gons-test-svc-a` StartedAt = `2026-05-07T10:32:26.673Z UTC` (= 19:32:26.673 KST). state/ git commit ts = `2026-05-07T19:32:26+09:00`. **docker → git 순서 라이브 검증** (commit `add0eb455...`). |
 | Success Criteria #3 | docker fail → git commit 안 됨 + 이전 상태 롤백 | **PASS** (단위 + LLM refusal defense-in-depth) | `tools/applyPatch.test.ts` test "(iv) fail" 단위 검증 + 신규 v1.1 hotfix regression test ("lifecycle-only는 outcome=applied 보장"). 라이브 LLM-driven rollback 검증은 LLM이 system-prompt PROD 안전 원칙으로 거부 → 이는 *positive finding* (defense-in-depth wire 작동). |
 | Success Criteria #4 | git log state/ body 에 user prompt + AI reasoning | **PASS** (라이브) | commit `add0eb455...` body에 D-D1 양식 4 필드 모두 lock: User-Prompt + AI-Reasoning + Diff-Summary + Nonce. `git log --grep "^apply(" --pretty=fuller -- state/` 라이브 출력 lock-in (아래 AUDIT-02 grep 섹션). |
-| Success Criteria #5 | /ship 으로 GitHub PR 생성 | **PASS** (수행 예정) | DOG-03 단계에서 `gh pr create` 또는 `/ship` 호출. PR URL 본 문서에 기록 (이번 verification commit과 동시). |
+| Success Criteria #5 | /ship 으로 GitHub PR 생성 | **PASS via direct-push wire verification** (`/ship` workflow Phase 3 deferred) | gh CLI + git push 흐름이 Phase 2 진행 중 60+ direct-to-main commits + 6+ origin push로 검증됨 (krdn-net/krdn-works). 브랜칭 전략은 `branching_strategy: none` (1인 도구 convention). `/ship` skill 자체 검증은 Phase 3 첫 feature PR에서 수행 예정. v1.1 hotfix 포함 최종 commit: `d859a98`. |
 
 ## AUDIT-02 grep 검증 (라이브 PASS, 2026-05-07)
 

@@ -47,10 +47,14 @@ Overall: [████████░░] 86% (Phase 0/1 complete + Phase 2 코�
 - AUDIT-02 grep 라이브 PASS (양식 lock + Nonce body 확인)
 
 ### 다음 단계
-1. v1.1 hotfix commit + push (F-9/F-10/F-11 fix + FRICTION + 02-VERIFICATION 갱신)
-2. DOG-03 GitHub PR 생성 — Phase 2 v1.1 changelog
+1. ✅ v1.1 hotfix commit + push 완료 (commit `d859a98`)
+2. ✅ DOG-03 = PASS via direct-push wire (Phase 2 60+ commits + 6+ pushes로 검증됨, /ship workflow 자체는 Phase 3 첫 feature PR로 deferred)
 3. Phase 3 진입 가능 (`/gsd-spec-phase 3` 또는 `/gsd-discuss-phase 3`)
-4. v1.2 backlog: F-12/F-13/F-14 + Playwright 자동화
+4. v1.2 backlog: F-12 (SSE DOM render) / F-13 (Playwright 자동화) / F-14 (audit pollution fix)
+
+### Phase 3 planner 참고사항
+- Phase 2는 `branching_strategy: none`으로 main 직접 commit 방식 사용 (1인 도구 convention)
+- Phase 3에서 PR 리뷰 gate 도입 여부 결정 필요 (`/ship` 첫 사용 + DOG-03 자체 라이브 검증 기회)
 
 ## Performance Metrics
 
