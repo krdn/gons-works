@@ -28,12 +28,14 @@ BLOCK=$(cat <<'EOF'
 # === APPLY-07 state/-only ff-only block (PITFALL #8) ===
 # state/ subdir 변경이 staged이고 reflog가 rebase/rewrite/reset 패턴이면
 # commit 거부. 메인 repo의 다른 영역은 영향받지 않음 (D-04 lock).
+# NOTE (02-10 hotfix): 'git reflog' 양식은 'reset: moving to <ref>'이며 hard/soft/mixed
+#   구분이 없다. 따라서 'reset:*hard*' glob는 매칭 0건이었음. 모든 reset 분기를 거부한다.
 STATE_STAGED=$(git diff --cached --name-only -- state/ 2>/dev/null || echo "")
 if [ -n "$STATE_STAGED" ]; then
   LAST_REFLOG=$(git reflog -1 --format="%gs" 2>/dev/null || echo "")
   case "$LAST_REFLOG" in
-    rebase*|*rewrite*|reset:*hard*)
-      echo "[pre-commit] APPLY-07 violation: state/ 변경에 rebase/rewrite/reset --hard 감지. state/ fast-forward only."
+    rebase*|*rewrite*|reset:*)
+      echo "[pre-commit] APPLY-07 violation: state/ 변경에 rebase/rewrite/reset 감지. state/ fast-forward only."
       exit 1
       ;;
   esac
