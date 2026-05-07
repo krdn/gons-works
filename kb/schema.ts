@@ -25,6 +25,8 @@ export const StackSchema = z.object({
   normal_log_pattern: z.string().default(""),
   key_log_locations: z.array(z.string()).default([]),
   containers: z.array(ContainerRefSchema).default([]),
+  // 운영자가 의도해서 stop 상태로 둔 stack — drift detection의 stale 분류에서 제외 (PITFALL #11 노이즈 감소).
+  paused: z.boolean().default(false),
 })
 
 export const ServicesYamlSchema = z.object({

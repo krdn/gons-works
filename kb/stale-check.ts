@@ -86,21 +86,29 @@ export function makeStaleCheck(deps: StaleCheckDeps): (env: Env) => Promise<Stal
     const parsed = ServicesYamlSchema.parse(load(yaml))
 
     const yamlStacks = new Set(Object.keys(parsed.stacks))
+    // paused stack은 stale 분류 대상에서 제외 (운영자가 의도한 stop).
+    const pausedStacks = new Set(
+      Object.entries(parsed.stacks)
+        .filter(([, stack]) => stack.paused)
+        .map(([key]) => key),
+    )
     const dockerStackHits = new Set<string>()
     const unknownContainers: string[] = []
 
     for (const c of containers) {
       const stack = classifyStack(c.Names)
       if (stack && yamlStacks.has(stack)) {
-        // 5 stack 매칭 — running만 카운트 (stale 판단의 "라이브 인스턴스" 정의).
+        // stack 매칭 — running만 카운트 (stale 판단의 "라이브 인스턴스" 정의).
         if (c.State === "running") dockerStackHits.add(stack)
       } else if (!stack && c.State === "running") {
-        // 5 stack 미매칭 + running → unknown.
+        // stack 미매칭 + running → unknown.
         unknownContainers.push(c.Names)
       }
     }
 
-    const staleStackKeys = [...yamlStacks].filter((k) => !dockerStackHits.has(k))
+    const staleStackKeys = [...yamlStacks].filter(
+      (k) => !pausedStacks.has(k) && !dockerStackHits.has(k),
+    )
 
     const report: StalenessReport = {
       unknown: unknownContainers,

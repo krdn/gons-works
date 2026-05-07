@@ -128,7 +128,13 @@ describe("kb/schema (D-12.4 strict Zod)", () => {
     expect(Object.keys(result.stacks)).toContain("n8n")
     expect(Object.keys(result.stacks)).toContain("open-webui")
     expect(Object.keys(result.stacks)).toContain("krdn-fx")
-    // 5 stack 모두 4 슬롯이 비-empty
+    // 2026-05-07 갱신: 운영자 도구 + ai-afterschool 신규 stack.
+    expect(Object.keys(result.stacks)).toContain("ai-afterschool")
+    expect(Object.keys(result.stacks)).toContain("vscode")
+    expect(Object.keys(result.stacks)).toContain("cli-proxy-api")
+    // krdn-fx는 paused 마커 — 운영자 의도된 stop.
+    expect(result.stacks["krdn-fx"]?.paused).toBe(true)
+    // 모든 stack의 4 슬롯이 비-empty
     for (const [name, stack] of Object.entries(result.stacks)) {
       expect(stack.depends_on.length, `${name} depends_on`).toBeGreaterThan(0)
       expect(stack.volumes.length, `${name} volumes`).toBeGreaterThan(0)

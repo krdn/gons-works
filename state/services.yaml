@@ -4,8 +4,8 @@
 # Phase 1 KB-02에서 Voyage AI voyage-4-lite 1024차원 임베딩 후 bun:sqlite RAG에 인덱싱.
 # 이 파일이 RAG retrieval 품질의 ground truth (Spike 2 baseline top-1 sim=0.6308).
 
-generated_at: "2026-05-06T11:04:05.868Z"
-generated_from: "docker --context home-server ps -a --format json"
+generated_at: "2026-05-07T20:50:00+09:00"
+generated_from: "docker --context home-server ps -a --format json (drift 갱신: vscode/cli-proxy-api/ai-afterschool 신규 + krdn-fx paused 마커)"
 
 stacks:
   news:
@@ -152,16 +152,63 @@ stacks:
         state: "running"
         status: "Up 6 days (healthy)"
 
-  krdn-fx:
-    purpose: "FX 시계열 대시보드 (TimescaleDB 기반, 현재 정지 상태)"
+  ai-afterschool:
+    purpose: "AI 방과후 FSD 웹 (Feature-Sliced Design 기반 차세대 UI, port 3001 localhost)"
     depends_on:
-      - "krdn-timescaledb (timescale/timescaledb:latest-pg16, port 5435)"
+      - "ais-prod-postgres 또는 외부 API (FSD 리팩터 진행 중, 명시적 의존성 미정)"
     volumes:
-      - "krdn-timescaledb-data (시계열 hypertable 데이터)"
+      - "ai-afterschool-fsd-data (FSD 빌드 산출물 + 정적 자산)"
+    normal_log_pattern: "GET / 200"
+    key_log_locations:
+      - "ai-afterschool-fsd-web"
+    containers:
+      - name: "ai-afterschool-fsd-web"
+        image: "ai-afterschool-fsd:latest"
+        state: "running"
+        status: "Up (FSD 차세대 UI)"
+
+  vscode:
+    purpose: "Code Server — 브라우저 기반 VSCode (운영자 도구, port 8080 내부)"
+    depends_on:
+      - "(독립 실행, 외부 의존성 없음 — 운영자 도구)"
+    volumes:
+      - "vscode-data (사용자 설정 + 확장 프로그램)"
+    normal_log_pattern: "[server] Connection established"
+    key_log_locations:
+      - "vscode"
+    containers:
+      - name: "vscode"
+        image: "codercom/code-server"
+        state: "running"
+        status: "Up"
+
+  cli-proxy-api:
+    purpose: "LLM CLI 프록시 (Anthropic/OpenAI 게이트웨이, gons-works ANTHROPIC_BASE_URL 타겟, port 8317/54545)"
+    depends_on:
+      - "외부 LLM provider (Anthropic console.anthropic.com / OpenAI api.openai.com)"
+    volumes:
+      - "cli-proxy-api-config (API 키 + 모델 라우팅 규칙)"
+    normal_log_pattern: "POST /v1/messages 200"
+    key_log_locations:
+      - "cli-proxy-api"
+    containers:
+      - name: "cli-proxy-api"
+        image: "eceasy/cli-proxy-api:latest"
+        state: "running"
+        status: "Up (gons-works LLM 게이트웨이)"
+
+  krdn-fx:
+    purpose: "FX 시계열 대시보드 (TimescaleDB 기반, 현재 정지 상태 — 운영자가 의도해서 stop)"
+    paused: true
+    depends_on:
+      - "krdn-timescaledb (timescale/timescaledb:latest-pg16, port 5435 — 단독 running)"
+    volumes:
+      - "krdn-timescaledb-data (시계열 hypertable 데이터, dashboard/backend stop 중에도 보존)"
     normal_log_pattern: "FX tick received"
     key_log_locations:
       - "krdn-fx-dashboard"
       - "krdn-fx-backend"
+      - "krdn-timescaledb"
     containers:
       - name: "krdn-fx-dashboard"
         image: "krdn-fx-dashboard"
@@ -171,16 +218,15 @@ stacks:
         image: "krdn-fx-backend"
         state: "exited"
         status: "Exited (0) 2 weeks ago"
+      - name: "krdn-timescaledb"
+        image: "timescale/timescaledb:latest-pg16"
+        state: "running"
+        status: "Up (paused stack 중 데이터 보존용으로 running)"
 
-# 5 핵심 stack에 매핑되지 않은 컨테이너 (참고용, 후속 phase에 추가 가능)
+# 핵심 stack에 매핑되지 않은 컨테이너 (참고용, 모두 exited 상태 — running unknown 0건 목표).
 # D-12.4: RAG 인덱싱은 stacks.* 만 처리하고 unmatched_containers는 future v2 처리.
+# 2026-05-07 갱신: vscode/cli-proxy-api/ai-afterschool-fsd-web/krdn-timescaledb는 stacks.*로 승격됨.
 unmatched_containers:
-  - name: "vscode"
-    image: "codercom/code-server"
-    state: "running"
-  - name: "cli-proxy-api"
-    image: "eceasy/cli-proxy-api:latest"
-    state: "running"
   - name: "ai-insight-api"
     image: "ai-insight-api:latest"
     state: "exited"
@@ -190,9 +236,6 @@ unmatched_containers:
   - name: "nitter-redis"
     image: "8b81dd37ff02"
     state: "exited"
-  - name: "ai-afterschool-fsd-web"
-    image: "ai-afterschool-fsd:latest"
-    state: "running"
   - name: "voice-worker"
     image: "voice-recognition-voice-worker"
     state: "exited"
@@ -208,9 +251,6 @@ unmatched_containers:
   - name: "voice-redis"
     image: "8b81dd37ff02"
     state: "exited"
-  - name: "krdn-timescaledb"
-    image: "timescale/timescaledb:latest-pg16"
-    state: "running"
   - name: "gonsai2-mongodb-prod"
     image: "mongo:7"
     state: "exited"

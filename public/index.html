@@ -417,9 +417,26 @@
         // CSS attribute selector 이스케이프 우회 + O(1) 조회.
         var toolCards = new Map();
 
+        // F-16 (2026-05-07): 활성 EventSource 1개만 유지.
+        // htmx-ext-sse는 server stream 종료 시 자동 재연결 → final/error 후에도 같은 prompt 무한 재실행.
+        // 이 변수에 source를 보관하고, final/error 또는 새 prompt 시점에 명시적으로 close.
+        var currentEventSource = null;
+        var sseMountEl = document.getElementById("sse-mount");
+
+        function closeCurrentSse() {
+          if (currentEventSource) {
+            try { currentEventSource.close(); } catch (e) { /* noop */ }
+            currentEventSource = null;
+          }
+          // sse-connect 마운트 제거 — htmx-ext-sse가 이 div를 다시 process하지 않도록.
+          if (sseMountEl) sseMountEl.replaceChildren();
+        }
+
         // 새 prompt submit 직전 이전 출력 reset (UI-SPEC.md Interaction Contract).
         document.body.addEventListener("htmx:beforeRequest", function (evt) {
           if (evt.detail && evt.detail.elt === formEl) {
+            // 이전 EventSource 잔여 연결 차단 — F-16.
+            closeCurrentSse();
             outputEl.replaceChildren();
             errorEl.style.display = "none";
             errorEl.replaceChildren();
@@ -491,6 +508,8 @@
               setTimeout(function () {
                 statusEl.classList.add("fade");
               }, 1500);
+              // F-16: 자동 재연결 차단 — 같은 prompt 무한 재실행 방지.
+              closeCurrentSse();
               break;
             }
 
@@ -518,6 +537,8 @@
               errorEl.appendChild(fix);
 
               errorEl.style.display = "block";
+              // F-16: error 후에도 자동 재연결 차단 — 같은 401/실패 무한 반복 방지.
+              closeCurrentSse();
               break;
             }
 
@@ -707,6 +728,11 @@
         document.body.addEventListener("htmx:sseOpen", function (evt) {
           var source = evt.detail && evt.detail.source;
           if (!source || typeof source.addEventListener !== "function") return;
+          // F-16: 현재 활성 source 1개만 유지 — 이전 것 close (방어적, 보통 already null).
+          if (currentEventSource && currentEventSource !== source) {
+            try { currentEventSource.close(); } catch (e) { /* noop */ }
+          }
+          currentEventSource = source;
           SSE_EVENT_TYPES.forEach(function (t) {
             source.addEventListener(t, function (msg) {
               dispatchSseEvent({ type: t, data: msg.data });

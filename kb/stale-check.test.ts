@@ -120,8 +120,10 @@ describe("staleCheck — KB-03 docker vs yaml semantic diff", () => {
       { Names: "n8n", State: "running" },
       { Names: "open-webui", State: "running" },
       { Names: "krdn-fx-dashboard", State: "running" },
-      { Names: "vscode", State: "running" }, // unknown
-      { Names: "gonsai2-frontend", State: "running" }, // unknown
+      // 2026-05-07: vscode/cli-proxy-api/ai-afterschool은 stack으로 승격되어 unknown 아님.
+      // 진짜 unknown 후보들 (5 핵심 + 운영자 도구 어디에도 매칭 안 됨):
+      { Names: "gonsai2-frontend", State: "running" },
+      { Names: "nitter", State: "running" },
     ]
     const exec = mkExecDocker(rows)
     const staleCheck = makeStaleCheck({
@@ -129,8 +131,8 @@ describe("staleCheck — KB-03 docker vs yaml semantic diff", () => {
       readYaml: async () => fixtureYaml,
     })
     const report = await staleCheck(sampleEnv)
-    expect(report.unknown).toContain("vscode")
     expect(report.unknown).toContain("gonsai2-frontend")
+    expect(report.unknown).toContain("nitter")
     expect(report.stale).toEqual([])
   })
 
@@ -150,6 +152,34 @@ describe("staleCheck — KB-03 docker vs yaml semantic diff", () => {
     })
     const report = await staleCheck(sampleEnv)
     expect(report.stale).toContain("krdn-fx")
+  })
+
+  test("3b. paused: true 마커가 있으면 stale 분류에서 제외 (운영자 의도된 stop 노이즈 차단)", async () => {
+    // krdn-fx에 paused: true 추가한 yaml.
+    const pausedYaml = fixtureYaml.replace(
+      `  krdn-fx:
+    purpose: "fx"`,
+      `  krdn-fx:
+    purpose: "fx"
+    paused: true`,
+    )
+    const rows: DockerRow[] = [
+      { Names: "news-prod-redis", State: "running" },
+      { Names: "ais-prod-web", State: "running" },
+      { Names: "n8n", State: "running" },
+      { Names: "open-webui", State: "running" },
+      // krdn-fx 컨테이너 모두 exited — 평소면 stale.
+      { Names: "krdn-fx-dashboard", State: "exited" },
+      { Names: "krdn-fx-backend", State: "exited" },
+    ]
+    const exec = mkExecDocker(rows)
+    const staleCheck = makeStaleCheck({
+      execDocker: exec.fn,
+      readYaml: async () => pausedYaml,
+    })
+    const report = await staleCheck(sampleEnv)
+    expect(report.stale).not.toContain("krdn-fx")
+    expect(report.stale).toEqual([])
   })
 
   test("4. 30s TTL cache — 같은 input 두 번 호출 시 docker 호출 1회만", async () => {

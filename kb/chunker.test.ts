@@ -107,31 +107,37 @@ describe("chunkStack — D-13.1 필드 단위", () => {
   })
 })
 
-describe("chunkServicesYaml — D-13.1 5×5=25", () => {
-  test("7. state/services.yaml load → 25 chunk (5 stack × 5 field)", async () => {
+describe("chunkServicesYaml — D-13.1 N stack × 5 field", () => {
+  test("7. state/services.yaml load → N stack × 5 field chunks", async () => {
     const raw = await Bun.file("state/services.yaml").text()
     const parsed = ServicesYamlSchema.parse(load(raw))
     const chunks = chunkServicesYaml(parsed)
-    expect(chunks).toHaveLength(25)
-    // 5 stack 모두 chunk 보유 — distinct stacks
+    const stackCount = Object.keys(parsed.stacks).length
+    expect(chunks).toHaveLength(stackCount * 5)
+    // 모든 stack chunk 보유 — distinct stacks
     const stacks = new Set(chunks.map((c: Chunk) => c.metadata.stack))
-    expect(stacks.size).toBe(5)
+    expect(stacks.size).toBe(stackCount)
   })
 })
 
-describe("classifyStack — 5 stack 정규식 매핑", () => {
-  test("8. classifyStack 5 stack + null 모두 cover", () => {
+describe("classifyStack — stack 정규식 매핑", () => {
+  test("8. classifyStack 모든 stack + null 모두 cover", () => {
     expect(classifyStack("news-prod-redis")).toBe("news")
     expect(classifyStack("news-postgres")).toBe("news")
     expect(classifyStack("ais-prod-web")).toBe("ais")
     expect(classifyStack("ais-collector-worker")).toBe("ais")
+    expect(classifyStack("ai-afterschool-fsd-web")).toBe("ai-afterschool")
     expect(classifyStack("n8n")).toBe("n8n")
     expect(classifyStack("n8n-worker")).toBe("n8n")
     expect(classifyStack("open-webui")).toBe("open-webui")
     expect(classifyStack("openwebui")).toBe("open-webui")
     expect(classifyStack("krdn-fx-dashboard")).toBe("krdn-fx")
     expect(classifyStack("krdnfx-dashboard")).toBe("krdn-fx")
-    expect(classifyStack("vscode")).toBeNull()
+    // 2026-05-07 갱신: krdn-timescaledb는 krdn-fx 3-tier 일부.
+    expect(classifyStack("krdn-timescaledb")).toBe("krdn-fx")
+    // 2026-05-07 갱신: 운영자 도구 (vscode/cli-proxy-api)도 stack으로 승격.
+    expect(classifyStack("vscode")).toBe("vscode")
+    expect(classifyStack("cli-proxy-api")).toBe("cli-proxy-api")
     expect(classifyStack("gonsai2-frontend")).toBeNull()
     expect(classifyStack("nitter")).toBeNull()
   })

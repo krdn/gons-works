@@ -114,7 +114,9 @@ describe("ensureIndexed — D-13.3 hash lazy", () => {
     _setEmbedderForTest(stub)
     const result = await ensureIndexed()
     expect(result.indexed).toBe(true)
-    expect(result.chunkCount).toBe(25) // 5 stack × 5 field
+    // N stack × 5 field — yaml stack 수에 따라 동적 (2026-05-07 5→8 stack 확장).
+    expect(result.chunkCount % 5).toBe(0)
+    expect(result.chunkCount).toBeGreaterThanOrEqual(25)
     expect(stub.docCalls).toBe(1)
   })
 
@@ -193,7 +195,9 @@ e2eDescribe("E2E — live Voyage AI roundtrip", () => {
 
   test("12. ensureIndexed live + queryTopK 'redis 어디 쓰여' top-1 stack=ais|news (Spike 2 baseline)", async () => {
     const r = await ensureIndexed(true)
-    expect(r.chunkCount).toBe(25)
+    // N stack × 5 field — yaml stack 수에 따라 동적.
+    expect(r.chunkCount % 5).toBe(0)
+    expect(r.chunkCount).toBeGreaterThanOrEqual(25)
     const hits = await queryTopK("redis 어디 쓰여", 5)
     expect(hits.length).toBe(5)
     const top = hits[0]!
