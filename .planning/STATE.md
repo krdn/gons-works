@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 2 — Propose/Apply with Approval Gate (CONTEXT 작성 완료, ready for plan-phase)
+**Current focus:** Phase 2 — Propose/Apply with Approval Gate (Wave 1 실행 시작 — 02-02/03/04 병렬 dispatch)
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — D-E1 게이트 OPEN, 02-02 진입 unblocked
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 1 실행 중 (02-02/03/04 병렬)
 Plan: 1 of 10 PASS (D-E1) / 9 plans pending (02-02..02-10)
-Status: D-E1 재검증 5/5 PASS. F-1/F-2 fix가 라이브에서 결정적 검증 (Criteria #2 readLogs synthesis text-delta + final 도달, audit DB error_envelope=null 재발 0건). Phase 2 plan 02-02 ~ 02-10 진행 가능.
-Last activity: 2026-05-07 — D-E1 재실행: Criteria #1 (RAG grounded) PASS, #2 (readLogs+synthesis) PASS, #3 (drift wire) PASS, #4 (audit) PASS. SMOKE-LOG-2.md commit. 이전 SMOKE-LOG-1.md는 보존 (FAIL→PASS 전환 증거 추적).
+Status: Wave 0 (D-E1) 5/5 PASS 완료. Wave 1 dispatch — 02-02 approval/store / 02-03 state/commit / 02-04 init-state-compose 병렬 실행. 각 plan은 독립 파일 세트 수정으로 worktree 충돌 없음.
+Last activity: 2026-05-07 — `/gsd-execute-phase 2` 시작. Wave 1 (02-02/03/04) 3개 plan worktree isolation으로 병렬 dispatch.
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)

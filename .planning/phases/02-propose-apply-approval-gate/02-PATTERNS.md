@@ -2,7 +2,7 @@
 
 **Mapped:** 2026-05-07
 **Files analyzed:** 13 신설/확장 모듈 (CONTEXT decisions D-A1..D-E1 lock 기반)
-**Analogs found:** 11 / 13 (2개는 신규 — `state/.git/hooks/pre-commit` shell hook, `approval/store.ts` 신규 도메인)
+**Analogs found:** 11 / 13 (2개는 신규 — 메인 repo `.git/hooks/pre-commit`의 state/-only ff 블록 + `scripts/install-state-hook.sh` (D-04 lock: state/는 메인 repo subdir), `approval/store.ts` 신규 도메인)
 
 ---
 
@@ -16,7 +16,7 @@ Phase 2가 신설/확장하는 13개 포인트 1줄 요약. CONTEXT.md `<code_co
 | 2 | `tools/applyPatch.ts` | 신설 service (2PC orchestrator) | `tools/listContainers.ts`(Bun.spawn) + `audit/log.ts` (begin/end) | D-A5, D-B3, D-C1, D-C4, D-D4 |
 | 3 | `approval/store.ts` | 신설 in-memory store | `agent/loop.ts:53` `inFlight = new Map<...>` (LOOP-07 dedup map) | D-15.4 envelope, PITFALL #3 prevention |
 | 4 | `state/commit.ts` | 신설 utility (commit msg + sanitize + spawn -F) | `audit/log.ts` (prepared statement 분리) + `spikes/04-git-commit.test.ts` | D-D1, D-D3 |
-| 5 | `state/.git/hooks/pre-commit` | 신설 shell hook (TS 아님) | 없음 — 신규 (APPLY-07 + PITFALL #8 직접 명시) | APPLY-07, PITFALL Pitfall 8 |
+| 5 | 메인 repo `.git/hooks/pre-commit` (state/ pathspec 블록 추가) + `scripts/install-state-hook.sh` | 신설 shell hook 블록 + idempotent installer (TS 아님) | 없음 — 신규 (APPLY-07 + PITFALL #8 직접 명시). **D-04 lock: state/는 메인 repo subdir, 별도 git 아님** | APPLY-07, PITFALL Pitfall 8 |
 | 6 | `state/.pending/{nonce}.json` + `recoverPendingMarkers()` | 신설 marker + boot probe | `src/server.ts:191-220` (4 startup probe 패턴) | D-C1, D-C2, D-C3 |
 | 7 | `scripts/init-state-compose.ts` | 신설 일회성 SSH 복사 script | `tools/readCompose.ts` (SSH `cat`) + `scripts/draft-services-yaml.ts` (script 패턴) | D-A2 |
 | 8 | `tests/fixtures/test-compose.yml` + `tests/setup/docker-context.ts` | 신설 verify env | 없음 — 신규 디렉토리 (alpine 더미 stack) | D-A3 |
@@ -36,7 +36,7 @@ Phase 2가 신설/확장하는 13개 포인트 1줄 요약. CONTEXT.md `<code_co
 | `tools/applyPatch.ts` | service (2PC orchestrator) | request-response + file-I/O + side-effect | `tools/listContainers.ts` + `audit/log.ts` (composite) | partial-match (composite) |
 | `approval/store.ts` | model/store (in-memory) | event-driven (Promise resolve) | `agent/loop.ts:53-55` (in-memory Map) | partial-match (shape) |
 | `state/commit.ts` | utility | side-effect (git commit + temp file write) | `audit/log.ts` + `spikes/04-git-commit.test.ts` | partial-match |
-| `state/.git/hooks/pre-commit` | hook (shell) | event-driven (git pre-commit) | 없음 | none |
+| 메인 repo `.git/hooks/pre-commit` state/ 블록 + `scripts/install-state-hook.sh` | hook (shell) + installer | event-driven (git pre-commit, state/ pathspec gated) | 없음 | none |
 | `state/.pending/{nonce}.json` (data) + `recoverPendingMarkers()` | model + service | file-I/O + boot-time CRUD | `src/server.ts:191-220` startup probes | role-match |
 | `scripts/init-state-compose.ts` | script (one-shot) | batch (SSH read × 5) | `tools/readCompose.ts` (SSH cat) + `scripts/draft-services-yaml.ts` | role-match |
 | `tests/fixtures/test-compose.yml` | fixture (yaml) | data | 없음 (신규 디렉토리) | none |
@@ -269,50 +269,37 @@ export async function commitWithMessage(message: string, nonce: string): Promise
 
 ---
 
-### 5. `state/.git/hooks/pre-commit` — 신설 shell hook (APPLY-07, PITFALL Pitfall 8)
+### 5. 메인 repo `.git/hooks/pre-commit` state/-only 블록 + `scripts/install-state-hook.sh` — 신설 shell hook 블록 + idempotent installer (APPLY-07, PITFALL Pitfall 8)
 
 **Analog:** 없음 (TypeScript 모듈 아님 — POSIX shell 스크립트).
 
-**재사용 패턴:** Phase 1에 동등 analog 없음. APPLY-07 + PITFALL Pitfall 8 contract 직접 명시:
+**D-04 lock 재확인**: state/는 메인 repo의 서브디렉토리이며 별도 git repo가 아니다 (00-CONTEXT.md line 54-56, STATE.md "deferred items"의 "state/ git submodule 분리 → v2+"). 따라서 hook은 메인 repo의 `.git/hooks/pre-commit`에 상주하며 **state/ pathspec 변경에 한정**해서만 ff-only를 enforce한다. 메인 repo의 다른 영역(`src/`, `.planning/`, `tests/` 등)은 영향받지 않는다.
+
+**재사용 패턴:** Phase 1에 동등 analog 없음. APPLY-07 + PITFALL Pitfall 8 contract 직접 명시 (메인 hook 본문에 prepend, 기존 hook 보존):
 ```bash
-#!/bin/sh
-# state/.git/hooks/pre-commit
-# APPLY-07 lock: state/ git은 fast-forward only.
-# PITFALL Pitfall 8 (state/ git rebase 금지): force push / non-FF merge 차단.
-#
-# 검증 항목:
-#   1. HEAD가 ancestor of origin/main인지 (rebase가 발생하면 hash 변경 → fail)
-#   2. push 받는 쪽이 fast-forward만 허용 (이는 update hook이지만 pre-commit은 로컬 history 무결성 검증)
-#
-# Phase 2 single-writer 환경 (1인 도구) — pre-commit은 commit 시점에 ancestor만 체크.
-
-set -e
-
-# 현재 HEAD가 분기점 이후 commit이면 OK. rebase로 history 재작성한 경우 reflog와 HEAD가 불일치.
-PREV_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
-if [ -z "$PREV_HEAD" ]; then
-  # 첫 commit (initial) — 통과.
-  exit 0
+# === APPLY-07 state/-only ff-only block (PITFALL #8) ===
+# state/ subdir 변경이 staged이고 reflog가 rebase/rewrite/reset 패턴이면 commit 거부.
+# 메인 repo의 다른 영역은 영향받지 않음.
+STATE_STAGED=$(git diff --cached --name-only -- state/ 2>/dev/null || echo "")
+if [ -n "$STATE_STAGED" ]; then
+  LAST_REFLOG=$(git reflog -1 --format="%gs" 2>/dev/null || echo "")
+  case "$LAST_REFLOG" in
+    rebase*|*rewrite*|reset:*hard*)
+      echo "[pre-commit] APPLY-07 violation: state/ 변경에 rebase/rewrite/reset --hard 감지. state/ fast-forward only."
+      exit 1
+      ;;
+  esac
 fi
-
-# reflog의 가장 최근 entry가 commit/amend가 아니라 rebase면 거부.
-LAST_REFLOG=$(git reflog -1 --format="%gs" 2>/dev/null || echo "")
-case "$LAST_REFLOG" in
-  rebase*|*rewrite*)
-    echo "[pre-commit] APPLY-07 violation: rebase/rewrite 감지. fast-forward only."
-    exit 1
-    ;;
-esac
-
-exit 0
+# === end APPLY-07 block ===
 ```
 
 **차이점 (다른 Phase 2 모듈과):**
 - 유일한 비-TypeScript 산출물 — TS 코드 excerpt 없음.
-- `state/.git/hooks/`는 git이 자동 실행 — bun 런타임 의존 없음.
-- 설치는 `init-state-compose.ts` 수행 시 한 번 함께 (chmod +x).
+- `.git/hooks/`는 git이 자동 실행 — bun 런타임 의존 없음.
+- 설치는 `scripts/install-state-hook.sh` (idempotent — 이미 marker 존재 시 skip).
+- **clone 후 hook 자동 복구 필요**: `.git/hooks/`는 working tree 외부이므로 main repo가 추적하지 않는다 → 02-10 verification에서 운영자가 `bash scripts/install-state-hook.sh` 한 번 실행해야 APPLY-07 활성화.
 
-**결정 lock:** APPLY-07(fast-forward only enforce), PITFALL Pitfall 8(state/ git rebase 금지 prevention).
+**결정 lock:** APPLY-07(state/ pathspec gated fast-forward only enforce), PITFALL Pitfall 8(state/ rebase 금지 prevention), D-04(state/는 메인 repo subdir).
 
 ---
 
@@ -706,7 +693,7 @@ export const TOOL_SCHEMAS: Anthropic.Tool[] = [
 /.pending/
 ```
 
-**중요:** `state/.git/hooks/pre-commit`은 `state/.git/`이 `.gitignore` 자동 제외(git 메타) — 별도 처리 불필요. 단 `chmod +x`는 init script가 명시 수행.
+**중요:** 메인 repo `.git/hooks/pre-commit`은 `.git/` 자체가 working tree 외부이므로 main repo가 추적하지 않는다 → clone 후 자동 복구 안 됨. `scripts/install-state-hook.sh` idempotent installer가 hook 블록을 prepend + `chmod +x`. 02-10 verification에서 운영자가 한 번 실행해야 APPLY-07 활성화.
 
 ---
 
@@ -808,7 +795,7 @@ Phase 1 컨벤션: 모든 *.test.ts는 모듈 옆 colocated. `tests/` 디렉토�
 - `tests/setup/docker-context.ts` — `switchToLocalContext` / `restoreContext` helper.
 - E2E 검증은 `bun test tests/fixtures/`로 manual run (CI 미존재).
 
-`state/.git/hooks/pre-commit`은 shell script — `*.test.ts` 미적용. 검증은 manual scenario(intentional rebase 시도 → exit 1 확인).
+메인 repo `.git/hooks/pre-commit`의 state/-only 블록은 shell script — `*.test.ts` 미적용. 검증은 manual scenario(state/ 변경 stage 후 intentional rebase 시도 → exit 1 확인). 02-10 verification에서 자동화.
 
 ---
 
@@ -882,7 +869,7 @@ Phase 1 컨벤션: 모든 *.test.ts는 모듈 옆 colocated. `tests/` 디렉토�
 
 | File | Role | Data Flow | Reason |
 |------|------|-----------|--------|
-| `state/.git/hooks/pre-commit` | shell hook | event-driven (git lifecycle) | TS 모듈 아님, 코드베이스에 hook 미존재. APPLY-07 + PITFALL Pitfall 8 직접 명시. |
+| 메인 repo `.git/hooks/pre-commit` state/-only 블록 + `scripts/install-state-hook.sh` | shell hook 블록 + idempotent installer | event-driven (git lifecycle, state/ pathspec gated) | TS 모듈 아님, 코드베이스에 hook 미존재. APPLY-07 + PITFALL Pitfall 8 직접 명시. **D-04 lock: state/는 메인 repo subdir.** |
 | `tests/fixtures/test-compose.yml` | yaml fixture | data | Phase 1은 fixture 디렉토리 미사용 — 신규 (D-A3). |
 | `tests/setup/docker-context.ts` | test helper | config | Phase 1 *.test.ts colocated 컨벤션과 별도 — D-A3 신규 디렉토리. |
 

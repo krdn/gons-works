@@ -16,7 +16,7 @@ AI가 192.168.0.5 운영 서버의 Docker Compose 변경을 unified diff로 제�
 4. `tools/applyPatch.ts` 2PC orchestrator (docker exec → git commit, APPLY-04 lock + 게이트 안전망 D-B3 보강)
 5. `state/.pending/{nonce}.json` crash window marker (D-C1..D-C4 — 점진 update + boot detect + drift event + reject 동시성)
 6. `state/commit.ts` — `applied` / `rolled-back` git commit (D-D1..D-D4 — Subject + body 구문화 필드, applied/rolled-back만 commit, 나머지 SQLite events만)
-7. `state/.git/hooks/pre-commit` fast-forward only enforce (APPLY-07 lock, PITFALL #11 + Pitfall 8 prevention)
+7. 메인 repo `.git/hooks/pre-commit`에 state/-only ff-only 블록 추가 + `scripts/install-state-hook.sh` idempotent installer (APPLY-07 lock, PITFALL #11 + Pitfall 8 prevention). **D-04 재확인: state/는 메인 repo subdir, 별도 git repo 아님.**
 8. `public/index.html` 5-key approval form 확장 (Phase 1 6 SSE handler에 `event:approval-required`/`event:applied`/`event:rolled-back` 3개 추가)
 9. `tools/applyPatch.ts` LLM = `claude-opus-4-6` (`COPILOT_MODEL_PROPOSE`, D-10 정정 lock — 4.7은 외부 API 미공개)
 10. `tests/fixtures/test-compose.yml` 192.168.0.8 로컬 더미 stack (D-A3) — `DOCKER_CONTEXT=default`로 일시 전환 후 2PC E2E 검증
@@ -87,7 +87,7 @@ Phase 0(~2.3h) + Phase 1(~2h 44m) 사용. 18h 총 예산 중 약 13h 남음.
 
 - **D-C1:** **applyPatch lifecycle:** (a) `state/.pending/{nonce}.json` write (docker exec 직전) → (b) `Bun.spawn` docker compose 명령 → (c) `state/{compose mirror, services.yaml}` write + `git -C state commit` → (d) `state/.pending/{nonce}.json` delete. Crash가 (a)와 (b) 사이, (b)와 (d) 사이 어디서 일어나도 부트에서 marker 발견.
   - **Why:** docker exec 직전 write가 가장 보수적 — docker 시작 전 crash도 marker로 식별. PITFALL #2 prevention 코드는 이 시점을 명시 안 함, APPLY-05도 "marker 작성"만 명시 — D-C1이 정확한 시퀀스 정의.
-  - **How to apply:** `state/.pending/` 디렉토리 init 시 `mkdir -p` + `.gitignore`에 추가(또는 `state/.gitignore`로 격리). `bun:fs` sync write로 fsync 보장.
+  - **How to apply:** `state/.pending/` 디렉토리 init 시 `mkdir -p` + `state/.gitignore`로 격리(메인 repo가 추적하는 subdir gitignore). `bun:fs` sync write로 fsync 보장.
 
 - **D-C2:** **Boot 감지 시 자동 복구 안 함, SSE drift event + 수동 복구 명령 안내.** 서버 startup이 `ls state/.pending/*.json` → 발견 시 listContainers + git log 비교 후 `event:drift` 발신 (Phase 1 SSE event 재사용):
   ```
@@ -279,8 +279,8 @@ Phase 0(~2.3h) + Phase 1(~2h 44m) 사용. 18h 총 예산 중 약 13h 남음.
 - **SSH `gon@192.168.0.5` `cat > /원격경로/{stack}/docker-compose.yml`** (또는 `scp`) — applyPatch fileEdit 있을 때 원격 파일 갱신. state/compose/{stack}.yml mirror write + 원격 파일 갱신이 한 묶음. 원격 갱신 실패 시 git commit 안 함 (APPLY-04 docker→git 순서 보호).
 - **D-B1 7-command** — `compose up -d <svc> | down <svc> | restart <svc> | start <svc> | stop <svc> | logs <svc> --tail | ps`. AI Zod schema 화이트리스트.
 - **`Bun.spawn(['ssh', 'gon@192.168.0.5', \`cd /원격경로/{stack} && docker compose ${command}\`])`** — applyPatch가 실행하는 정확한 명령 (D-A5 lock). 명령 전체가 원격 192.168.0.5에서 실행되어 compose 파일 파싱과 relative volume 경로 모두 원격 기준으로 정상. `docker --context home-server compose -f` 패턴은 사용하지 않음 (로컬 CLI가 원격 절대경로를 못 읽고 relative volume도 로컬 기준으로 해석되어 깨짐). state/compose/{stack}.yml 미러는 audit/diff 표시 용도, applyPatch가 fileEdit 있으면 SSH `cat >` 또는 `scp`로 원격 파일도 동시 동기화 후 docker compose 명령 실행.
-- **`Bun.spawn(['git', 'commit', '-F', tmpFile, '--'], { cwd: 'state' })`** — D-D3 sanitization 시퀀스. 임시 파일 + `-F` + `--` 분리자 + `Bun.spawn`(`Bun.$`아님 — 셸 통과 회피).
-- **state/.git/hooks/pre-commit** — APPLY-07 fast-forward only enforce. Phase 2 첫 plan에 hook 작성 task 포함.
+- **`Bun.spawn(['git', 'commit', '-F', tmpFile, '--', 'state/'], { cwd: '.' })`** — D-D3 sanitization 시퀀스. 임시 파일 + `-F` + `--` 분리자 + state/ pathspec + `Bun.spawn`(`Bun.$` 아님 — 셸 통과 회피). **D-04 lock: state/는 메인 repo subdir이므로 cwd는 메인 repo 루트, pathspec으로 state/만 commit.**
+- **메인 repo `.git/hooks/pre-commit`** — state/ pathspec gated APPLY-07 fast-forward only enforce. Phase 2 첫 plan(02-03)에 hook 블록 prepend + `scripts/install-state-hook.sh` 작성 task 포함.
 - **`approval/store.ts`** — 신규 모듈. `Map<sessionId, PendingApproval>` + nonce + 2분 expiresAt + consumed flag (PITFALL #3 prevention 코드 그대로).
 
 </code_context>
