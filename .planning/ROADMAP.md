@@ -11,7 +11,7 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 - Decimal phases: Urgent insertions only (INSERTED marker)
 
 - [x] **Phase 0: Bootstrap & Spikes** - 6/6 spike GREEN + services.yaml 초안 + state/ 첫 commit (2026-05-06 완료, ~2.3h)
-- [ ] **Phase 1: Read-Only Knowledge Layer** - AI가 services.yaml + 라이브 docker 상태로 자연어 질의에 스트리밍 답변 (≤8h)
+- [x] **Phase 1: Read-Only Knowledge Layer** - AI가 services.yaml + 라이브 docker 상태로 자연어 질의에 스트리밍 답변 (2026-05-07 완료, ~2h 44m, 9/9 plans, 22/22 REQ-IDs unit/integration PASS, 153/157 tests PASS — live runtime smoke deferred to operator)
 - [ ] **Phase 2: Propose/Apply with Approval Gate** - 2PC patch + 5-key 승인 게이트 + git-versioned audit trail 완성 (≤8h)
 
 ## Phase Details
@@ -106,7 +106,8 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
   3. services.yaml과 실제 `docker ps` 결과가 다를 때 UI header에 drift warning이 표시됨
   4. `curl` 쿼리 후 SQLite event log에 timestamp + model + tool call 횟수가 기록됨
   5. tool iteration 8회 초과 또는 세션당 API call 30회 초과 시 루프가 hard cap으로 종료됨
-**Plans**: 9 plans across 4 waves (planned 2026-05-07)
+**Plans**: 9 plans across 4 waves (planned 2026-05-07, executed 2026-05-07)
+**Status**: Code-complete. 22/22 REQ-IDs unit/integration PASS. ROADMAP Success Criteria #5 (hard cap) unit-PASS. Criteria #1/#2/#3/#4 require live runtime smoke (start server, real NL queries, drift verification, audit log inspection) — operator action.
 
 **Wave 1** *(no dependencies, parallel)*
 - `01-01-PLAN.md` — services.yaml 보강 (D-12.1..12.4) via scripts/draft-services-yaml.ts (KB-01)

@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 1 — Read-Only Knowledge Layer (executing)
+**Current focus:** Phase 1 — Read-Only Knowledge Layer (✅ code-complete, awaiting operator smoke)
 
 ## Current Position
 
-Phase: 1 of 3 (Read-Only Knowledge Layer) — Wave 3 complete, Wave 4 starting
-Plan: 7 of 9
-Status: Wave 3 (01-06/07) merged to main, 153/157 tests pass (4 E2E skipped). Wave 4 (01-08, 01-09) ready.
-Last activity: 2026-05-07 — Wave 3 merged: agent(system-prompt/loop/sse) + src/server.ts SSE + src/env.ts FRICTION #8
+Phase: 1 of 3 (Read-Only Knowledge Layer) — ✅ COMPLETE (code), awaiting live smoke
+Plan: 9 of 9
+Status: All 4 waves merged. 22/22 REQ-IDs unit/integration PASS. 153/157 tests PASS (4 E2E skipped). ROADMAP Success Criteria #5 (hard cap) unit-PASS. #1/#2/#3/#4 deferred to operator runtime smoke.
+Last activity: 2026-05-07 — Phase 1 종료: Wave 4 머지(public/index.html htmx UI + VERIFICATION/FRICTION 문서)
 
-Progress: [████████░░] 78% (Phase 1 — 7/9 plans executed)
-Overall: [███░░░░░░░] 33% (1/3 phases — Phase 0 complete)
+Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
+Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
 
 ## Performance Metrics
 
@@ -62,6 +62,12 @@ None yet.
 - 환경 변수 함정: 셸의 빈 `ANTHROPIC_API_KEY=`가 Bun .env 자동 로드를 덮어씀 → 라이브 실행 시 `unset ANTHROPIC_API_KEY` 필요. Phase 1 startup script에 친절한 에러 메시지 추가 권장 (FRICTION.md #8)
 - ~~**Phase 1 KB-01 prerequisite**~~: ✅ resolved — services.yaml 5 stack 4 슬롯 보강 완료 (commit bc0f978)
 - ⚠ **VOYAGE_API_KEY 노출 (2026-05-07)**: Plan 01-05 executor가 라이브 E2E 검증 위해 부모 .env를 worktree로 복사 → 키가 sub-agent conversation transcript에 평문 노출. worktree .env는 삭제 완료. **권장 조치**: Voyage dashboard에서 즉시 키 회전 후 부모 .env 교체.
+- ⏸ **Phase 1 live runtime smoke (operator action)**: ROADMAP Success Criteria #1/#2/#3/#4가 unit/integration 외 라이브 검증 필요. 명령:
+  1. `unset ANTHROPIC_API_KEY && bun run src/server.ts` (서버 띄우기)
+  2. 브라우저 http://127.0.0.1:PORT 접속, "ais-prod redis 어디 쓰여?" 질의 → SSE stream + RAG + tool call 확인 (Criteria #1)
+  3. "지난밤 새벽 1-3시 voice 에러 패턴" 질의 → readLogs 호출 + 답변 (Criteria #2)
+  4. services.yaml에서 컨테이너 1개 임시 삭제 후 페이지 reload → drift banner 확인 (Criteria #3)
+  5. `sqlite3 data/audit.db "SELECT name, ok, duration_ms FROM events"` → tool call rows 확인 (Criteria #4)
 
 ## Deferred Items
 
@@ -75,10 +81,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-07
-Stopped at: Phase 1 plan complete — UI-SPEC approved (6/6 dim, 3 non-blocking FLAG), PATTERNS (16 files, 13 analogs), 9 PLAN.md (4 waves), checker VERIFIED after 1 revision (LOOP-06 60s SSE chunk timeout 보강)
-Resume file: .planning/phases/01-read-only-knowledge-layer/01-09-PLAN.md
-Next: /gsd-execute-phase 1  (Wave 1: 3 plans 병렬 → Wave 2: 2 → Wave 3: 2 → Wave 4: 2)
-Recommended: /clear 먼저 (이 세션 컨텍스트 길어짐)
+Stopped at: Phase 1 execute 완료 — 9/9 plans 4 waves 모두 머지 + 22/22 REQ-IDs unit/integration PASS + 153 tests PASS. ROADMAP Success Criteria #1-#4 라이브 smoke 보류.
+Resume file: .planning/phases/01-read-only-knowledge-layer/01-VERIFICATION.md (전체 검증 결과)
+Next: (선택) operator runtime smoke (위 Blockers/Concerns 5단계) → Phase 2 진행 (`/gsd-spec-phase 2` 또는 `/gsd-discuss-phase 2`)
+Outstanding operator actions: (1) VOYAGE_API_KEY 회전 (2) Phase 1 live runtime smoke
+Recommended: /clear 먼저 (이 세션 컨텍스트 매우 길어짐)
 
 ### Phase 1 carry-forward 요약 (재논의 금지)
 

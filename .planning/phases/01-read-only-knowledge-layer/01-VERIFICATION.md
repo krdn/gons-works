@@ -31,7 +31,7 @@ SQLite SELECT inspection, hard-cap live spot check). Reasons:
   totals. A subsequent **live** Plan 01-09 run will retest after Plan 01-08 ships, replacing
   this snapshot.
 
-The `2/22 PENDING` entries below are honest blockers, not failures.
+**Update (post-merge, 2026-05-07):** Plan 01-08 머지 완료 — UI-01/UI-03 PENDING → PASS 정정 (commit 88dd359). 22/22 unit/integration PASS. 4 ROADMAP Success Criteria 중 #5 (hard cap)는 unit-PASS, #1/#2/#3/#4는 live runtime smoke (operator action) 필요 — 후속 deferral 항목으로 STATE에 기록.
 
 ## Test Regression — Phase 1 Wave 1+2+3 (orchestrator-supplied)
 
@@ -74,9 +74,9 @@ Mapping per ROADMAP.md Phase 1 `Requirements:` line and per-plan SUMMARY `requir
 | 7 | READ-03 | PASS | `tools/readCompose.ts` — `Bun.spawn` SSH cat with `ConnectTimeout=10 / ServerAliveInterval=5 / ServerAliveCountMax=2 / BatchMode=yes` (PITFALL #12 mitigated); 1 sanity test + 1 E2E skip |
 | 8 | READ-04 | PASS | `agent/loop.ts iterate()` orchestrates `messages.create({ tools: TOOL_SCHEMAS })` → tool dispatch → result feedback (Plan 01-06); `src/server.ts /chat-stream` wires it with `staleCheck` + `queryTopK` + RAG context injection (Plan 01-07). Live NL-query smoke deferred to post-01-08 |
 | 9 | READ-05 | PASS | Same as READ-04 — `iterate()` is generic over the tool set; `readLogs --since/--until` is reachable. Live NL "지난밤 새벽 1-3시 voice 에러" smoke deferred to post-01-08 |
-| 10 | UI-01 | **PENDING — BLOCKED on 01-08** | `public/index.html` + htmx 2.x form + `htmx-ext-sse@2.2.4` wire is Plan 01-08 scope. `01-08-SUMMARY.md` does not exist on disk. `src/server.ts` route `GET /` returns a stub HTML if `public/index.html` is missing (Plan 01-07) — server side is ready, client side is not |
+| 10 | UI-01 | PASS (post-merge) | `public/index.html` (403 lines, commit 88dd359) — htmx 2.0.10 + `htmx-ext-sse@2.2.4` form wire. UI-SPEC 9 color + 5 spacing + 10 typography 토큰 반영. 17 acceptance grep 통과 (Plan 01-08 SUMMARY) |
 | 11 | UI-02 | PASS | `agent/sse.ts SseEvent` 6-type union (`text-delta` / `tool-start` / `tool-result` / `final` / `error` / `drift`) + `toSSEFrame(ev)` Hono-streamSSE-compatible encoder; 11 unit tests pass (Plan 01-06; re-verified Plan 01-07) |
-| 12 | UI-03 | **PENDING — BLOCKED on 01-08** | "Each tool call visualized in stream (calling listContainers...)" requires browser-side `htmx:sseMessage` switch on `tool-start` / `tool-result`. Server-side emit is wired (UI-02 PASS) but the visible browser rendering needs `public/index.html` + htmx-ext-sse — Plan 01-08 |
+| 12 | UI-03 | PASS (post-merge) | `public/index.html` (commit 88dd359) — 6 SSE event handler 완전 wire (`text-delta` / `tool-start` / `tool-result` / `final` / `error` / `drift`). tool-start ↔ tool-result 페어링 `Map<name, HTMLElement>` 채택. XSS 방어 `textContent`/`createTextNode` only (Plan 01-08 SUMMARY) |
 | 13 | UI-04 | PASS | `src/server.ts /chat-stream` enters with `await staleCheck(env)` and emits `event: drift` if `unknown.length \|\| stale.length > 0` before `iterate()` runs (Plan 01-07) |
 | 14 | LOOP-01 | PASS | `agent/loop.ts iterate(prompt, opts)` is HTTP-agnostic — accepts `{ sessionId, ragContext?, emit, abortSignal? }` callbacks only. Hono/Express not imported. 12 unit tests pass against mock client (Plan 01-06) |
 | 15 | LOOP-02 | PASS | `tools/_envelope.ts` — `ToolError = { problem, cause, fix, retryable }` + `run<T>(name, fn, timeoutMs?, auditParentId?, auditInput?)` wrapper; D-15.3 lock; 10 tests pass (7 base + 3 audit-hook integration) |
