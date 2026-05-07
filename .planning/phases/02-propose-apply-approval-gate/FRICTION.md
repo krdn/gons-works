@@ -5,6 +5,7 @@
 
 ## F-1 — `agent/loop.ts` two-step tool-use turn에서 `400 invalid_request_error: "messages: at least one message is required"`
 
+**Status:** RESOLVED in Phase 1 plan 01-10 (commit `fix(01): 10/T2 — agent/loop.ts F-1 fix`). Root cause = H4 (compactHistory array aliasing). H1/H2/H3 모두 spike 4개로 reject. 자세한 진단/fix는 `.planning/phases/01-read-only-knowledge-layer/FRICTION.md` F-1 섹션 참조.
 **Severity:** HIGH (Phase 1 ROADMAP Success Criteria #1/#2/#3 동시 차단)
 **Discovered:** 2026-05-07 (D-E1 게이트, `02-01-SMOKE-LOG.md` Criteria #1)
 **Source:** Live smoke (raw curl `/chat-stream`)
@@ -44,6 +45,7 @@ curl -s --max-time 180 "http://127.0.0.1:3000/chat-stream?prompt=ais-prod%20redi
 
 ## F-2 — `server.ts` SSE final/synthesis emit 클라이언트 미도달 (audit 정상)
 
+**Status:** RESOLVED in Phase 1 plan 01-10 (commit `fix(01): 10/T3 — src/server.ts F-2 fix`). pendingWrites 큐 + finally Promise.allSettled flush 패턴 적용. 자세한 진단/fix는 `.planning/phases/01-read-only-knowledge-layer/FRICTION.md` F-2 섹션 참조.
 **Severity:** HIGH (Phase 1 ROADMAP Success Criteria #1/#2 wire 가시성 결함)
 **Discovered:** 2026-05-07 (D-E1 게이트, `02-01-SMOKE-LOG.md` Criteria #1 hello probe)
 **Source:** Live smoke + audit DB 대조

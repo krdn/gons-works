@@ -197,6 +197,48 @@ Phase 1은 통합 파이프라인의 두 번째 dogfood 검증 사례. Phase 0�
 
 ---
 
-*Last updated: 2026-05-07 by Plan 01-09 (documentation-only slot, Wave 4)*
-*Phase 1 신규 마찰 10건 / 누적 20건 (Phase 0 10 + Phase 1 10)*
+## Carry-back from Phase 2 D-E1 게이트 (Plan 01-10 Hotfix)
+
+Phase 2 plan 02-01 (D-E1 pre-execute gate)이 라이브 환경에서 22/22 unit/integration PASS 코드의 wire 결함 2건을 lock-in했다. 결함이 Phase 1 코드 boundary에 속해 Phase 1로 carry-back하여 hotfix plan 01-10에서 해소.
+
+### F-1 (HIGH, RESOLVED) — `agent/loop.ts` compactHistory array aliasing
+
+**Discovered:** 2026-05-07 (Phase 2 D-E1 게이트, `02-01-SMOKE-LOG.md` Criteria #1)
+**Root cause:** H4 — `compactHistory`의 두 early-return 분기(estimateTokens<threshold, length<=7)가 입력 ref를 그대로 반환. caller(L401-403)가 `messages.length=0; messages.push(...compacted)` 패턴으로 in-place reset할 때 array aliasing으로 messages가 빈 배열이 됨 → 다음 callWithFallback에서 400 invalid_request_error: "messages: at least one message is required" 발화.
+
+**Evidence:**
+- audit DB events.id=8 error_envelope (req_011Canaq7qP5ZbJXfECrMDt5, 2026-05-07T04:33:25Z)
+- audit DB events.id=5 error_envelope (req_011CanZMFphsM333ojVTmqCs, 2026-05-07T04:14:00Z)
+- 1줄 reproduce: `bun -e "const a=[1,2,3]; const b=a; a.length=0; a.push(...b); console.log(a.length)"` → `0`
+- 4 spike 격리 검증으로 H1(cli-proxy-api), H2(tool_result content shape), H3(compactHistory length 분기) 모두 reject — payload는 정상이었고 buggy한 건 in-place reset이었음
+
+**Fix:** `compactHistory`의 두 early-return을 `[...messages]`로 변경 (항상 새 array 반환). caller에 defense-in-depth `if (messages.length === 0) throw` 추가.
+
+**회귀 방지:** `agent/loop.test.ts` +3 tests (compactHistory ref 검증, aliasing 안전성, 2-iteration tool_use turn messages.length > 0).
+
+**Cross-ref:** `.planning/phases/02-propose-apply-approval-gate/FRICTION.md` F-1 (Status: RESOLVED in Phase 1 plan 01-10).
+
+### F-2 (HIGH, RESOLVED) — `src/server.ts` SSE final emit fire-and-forget swallow
+
+**Discovered:** 2026-05-07 (Phase 2 D-E1 게이트, `02-01-SMOKE-LOG.md` Criteria #1 hello probe)
+**Root cause:** server.ts L147 `emit: (ev) => { void emit(ev) }` — agent/loop.ts iterate가 sync emit 콜백을 expect, server.ts는 async writeSSE를 fire-and-forget 래핑. iterate resolve 직후 streamSSE가 stream을 close하면 큐잉된 마지막 writeSSE Promise(특히 final event)가 resolve되기 전에 swallow.
+
+**Evidence:**
+- audit DB events.id=11/12/13 (prompt="hello"): error_envelope=null + duration_ms 4-5초 → 정상 종료
+- 동일 시각 curl /chat-stream 응답: drift event만 도달, text-delta + final 미도달
+
+**Fix:** `pendingWrites: Promise<void>[]` 큐 도입 + emit 콜백을 sync void로 변경 (iterate 인터페이스와 호환) + finally 블록에서 watchdog.cancel() 후 `Promise.allSettled(pendingWrites)`로 모든 emit 완결 보장.
+
+**회귀 방지:** `src/server.test.ts` +2 tests (Promise.allSettled flush 패턴, rejected writeSSE swallow 안전성).
+
+**Cross-ref:** `.planning/phases/02-propose-apply-approval-gate/FRICTION.md` F-2 (Status: RESOLVED in Phase 1 plan 01-10).
+
+### 메타 노트 — D-E1 게이트의 가치 입증
+
+Phase 1은 22/22 unit/integration PASS였지만 두 결함 모두 라이브 환경에서만 드러났다. D-E1 게이트(plan 02-01, `type: checkpoint:human-action`)가 Phase 2 본격 진입 전에 이를 잡아 Phase 2 폭발 위험을 차단. 단위 테스트는 mock emit/sync flow를 쓰므로 array aliasing이나 SSE async race를 잡지 못한다 — **integration smoke + audit DB cross-check**가 PITFALL 잡는 결정적 도구임을 dogfood로 lock-in.
+
+---
+
+*Last updated: 2026-05-07 by Plan 01-10 (carry-back from Phase 2 D-E1)*
+*Phase 1 신규 마찰 10건 + carry-back 2건 / 누적 22건 (Phase 0 10 + Phase 1 10 + carry-back 2)*
 *다음 개정판 입력: `~/.claude/plans/gstack-gsd-melodic-raven.md`*
