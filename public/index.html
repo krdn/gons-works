@@ -222,6 +222,136 @@
         outline: 2px solid var(--color-accent);
         outline-offset: 2px;
       }
+
+      /* ===== Phase 2: 5-key approval form (DESIGN.md correction #5 lock) ===== */
+      .approval-card {
+        border: 1px solid var(--color-warning);
+        border-left: 4px solid var(--color-warning);
+        background: var(--color-surface);
+        padding: var(--space-md);
+        margin: var(--space-md) 0;
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-mono);
+        line-height: var(--line-height-mono);
+        border-radius: 4px;
+      }
+      .approval-card:focus {
+        outline: 2px solid var(--color-warning);
+        outline-offset: 2px;
+      }
+      /* 인라인 legend — DESIGN.md correction #5: 항상 visible (custom UX) */
+      .approval-card .legend {
+        font-size: var(--font-size-label);
+        color: var(--color-muted);
+        line-height: var(--line-height-label);
+        margin-bottom: var(--space-sm);
+      }
+      .approval-card .legend kbd {
+        background: var(--color-bg);
+        color: var(--color-text);
+        padding: 2px 6px;
+        border-radius: 3px;
+        border: 1px solid var(--color-border);
+        margin: 0 2px;
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-label);
+      }
+      .approval-card .header {
+        font-weight: var(--font-weight-semibold);
+        font-size: var(--font-size-heading);
+        line-height: 1.3;
+        color: var(--color-text);
+        margin-bottom: var(--space-sm);
+      }
+      .approval-card .reasoning {
+        background: var(--color-bg);
+        padding: var(--space-sm) var(--space-md);
+        margin: var(--space-sm) 0;
+        border-left: 2px solid var(--color-mono);
+        color: var(--color-text);
+        white-space: pre-wrap;
+        border-radius: 2px;
+      }
+      .approval-card pre.diff {
+        max-height: 400px;
+        overflow: auto;
+        background: var(--color-bg);
+        padding: var(--space-sm);
+        margin: var(--space-sm) 0;
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-mono);
+        line-height: var(--line-height-mono);
+        color: var(--color-mono);
+        border-radius: 2px;
+        white-space: pre-wrap;
+      }
+      .approval-card pre.diff.hidden { display: none; }
+      .approval-card textarea.edit {
+        display: none;
+        width: 100%;
+        min-height: 200px;
+        background: var(--color-bg);
+        color: var(--color-text);
+        border: 1px solid var(--color-border);
+        border-radius: 4px;
+        padding: var(--space-sm);
+        margin-top: var(--space-sm);
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-mono);
+        line-height: var(--line-height-mono);
+      }
+      .approval-card textarea.edit.visible { display: block; }
+      .approval-card textarea.edit:focus {
+        outline: none;
+        border-color: var(--color-accent);
+      }
+      .approval-card .actions {
+        margin-top: var(--space-sm);
+        font-size: var(--font-size-label);
+        color: var(--color-muted);
+        line-height: var(--line-height-label);
+      }
+      .approval-card.submitted {
+        opacity: 0.7;
+      }
+      .approval-card .submitted-status {
+        margin-top: var(--space-sm);
+        font-size: var(--font-size-label);
+        color: var(--color-accent);
+      }
+      .approval-card .submit-error {
+        margin-top: var(--space-sm);
+        font-size: var(--font-size-label);
+        color: var(--color-error);
+      }
+
+      /* applied 카드 — 성공 (Phase 1 tool-result ✓ 패턴 차용) */
+      .applied-card {
+        display: block;
+        background: var(--color-surface);
+        border-left: 4px solid var(--color-accent);
+        padding: var(--space-sm) var(--space-md);
+        margin: var(--space-sm) 0;
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-label);
+        line-height: var(--line-height-label);
+        color: var(--color-text);
+        border-radius: 2px;
+      }
+
+      /* rolled-back 카드 — 실패/롤백 (Phase 1 tool-result ✗ 패턴 차용) */
+      .rolled-back-card {
+        display: block;
+        background: var(--color-surface);
+        border-left: 4px solid var(--color-error);
+        padding: var(--space-sm) var(--space-md);
+        margin: var(--space-sm) 0;
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-label);
+        line-height: var(--line-height-label);
+        color: var(--color-text);
+        border-radius: 2px;
+      }
     </style>
   </head>
   <body>
@@ -392,10 +522,246 @@
               break;
             }
 
+            // ===== Phase 2: APPLY-02 5-key 승인 게이트 (UI-02 +3) =====
+
+            case "approval-required": {
+              // 외부 입력값(diff/nonce/reasoning/command/stack)은 모두 textContent로만 렌더 — XSS 차단.
+              var card = document.createElement("section");
+              card.className = "approval-card";
+              card.dataset.nonce = String(parsed.nonce || "");
+              card.dataset.stack = String(parsed.stack || "");
+              card.setAttribute("tabindex", "0");
+              card.setAttribute("role", "dialog");
+              card.setAttribute("aria-label", "승인 게이트");
+
+              // 인라인 legend — DESIGN.md correction #5 lock (custom UX, 항상 visible).
+              // 5-key 안내를 textContent + <kbd> 노드로만 구성 (HTML 문자열 주입 0회).
+              var legend = document.createElement("div");
+              legend.className = "legend";
+              legend.appendChild(document.createTextNode("키보드: "));
+              var legendKeys = [
+                "[y]es",
+                "[n]o",
+                "[e]dit",
+                "[d]iff",
+                "[a]bort",
+              ];
+              legendKeys.forEach(function (label, i) {
+                var kbd = document.createElement("kbd");
+                kbd.textContent = label;
+                legend.appendChild(kbd);
+                if (i < legendKeys.length - 1) {
+                  legend.appendChild(document.createTextNode(" "));
+                }
+              });
+              card.appendChild(legend);
+
+              // header — [stack] command service (만료 시간)
+              var headerLine = document.createElement("div");
+              headerLine.className = "header";
+              var headerText = "[" + String(parsed.stack || "?") + "] " +
+                String(parsed.command || "?");
+              if (parsed.service) {
+                headerText += " " + String(parsed.service);
+              }
+              if (typeof parsed.expiresAt === "number") {
+                var t;
+                try { t = new Date(parsed.expiresAt).toLocaleTimeString(); }
+                catch (e) { t = String(parsed.expiresAt); }
+                headerText += "  (만료: " + t + ")";
+              }
+              headerLine.textContent = headerText;
+              card.appendChild(headerLine);
+
+              // reasoning — AI가 제시한 사유 (verbatim, textContent only).
+              var reasoning = document.createElement("div");
+              reasoning.className = "reasoning";
+              reasoning.textContent = "AI 사유: " + String(parsed.reasoning || "(없음)");
+              card.appendChild(reasoning);
+
+              // diff — unified diff (verbatim, textContent only).
+              var diffPre = document.createElement("pre");
+              diffPre.className = "diff";
+              diffPre.textContent = String(parsed.diff || "");
+              card.appendChild(diffPre);
+
+              // edit textarea — hidden by default. 'e' 키로 visible toggle.
+              // value는 fileEdit.newContent prefill (있으면). textContent 동급(value setter는 안전).
+              var textarea = document.createElement("textarea");
+              textarea.className = "edit";
+              textarea.setAttribute("aria-label", "편집된 newContent");
+              textarea.placeholder =
+                "여기에 newContent를 편집한 뒤 'y'를 다시 누르거나 카드 외부에서 'y'를 누르면 edited 결정으로 전송됩니다.";
+              if (typeof parsed.newContent === "string") {
+                // proposePatch 결과에 newContent가 동봉돼 있으면 prefill (DOM property setter — XSS 안전).
+                textarea.value = parsed.newContent;
+              }
+              card.appendChild(textarea);
+
+              // actions hint — 카드 focus 안내.
+              var actions = document.createElement("div");
+              actions.className = "actions";
+              actions.textContent = "이 카드를 클릭(focus)한 뒤 위 키 중 하나를 누르세요.";
+              card.appendChild(actions);
+
+              outputEl.appendChild(card);
+              // 즉시 focus — 사용자가 추가 클릭 없이 5-key 사용 가능.
+              try { card.focus(); } catch (e) { /* noop */ }
+              break;
+            }
+
+            case "applied": {
+              // ✓ 적용 완료 카드 (Phase 1 tool-result ✓ 패턴 차용).
+              var aCard = document.createElement("div");
+              aCard.className = "applied-card";
+              aCard.dataset.nonce = String(parsed.nonce || "");
+              var sha = String(parsed.sha_after || "");
+              var shaShort = sha.length > 8 ? sha.slice(0, 8) : sha;
+              var aText = "✓ 적용 완료 — [" + String(parsed.stack || "?") + "] " +
+                String(parsed.command || "?");
+              if (parsed.service) {
+                aText += " " + String(parsed.service);
+              }
+              if (shaShort) {
+                aText += "  sha_after=" + shaShort;
+              }
+              if (typeof parsed.duration_ms === "number") {
+                aText += "  duration=" + parsed.duration_ms + "ms";
+              }
+              aCard.textContent = aText;
+              outputEl.appendChild(aCard);
+
+              // 페어링: 같은 nonce의 approval-card에 'submitted' 표시 (이미 있다면).
+              var pendingCard = outputEl.querySelector(
+                '.approval-card[data-nonce="' + String(parsed.nonce || "").replace(/"/g, '\\"') + '"]'
+              );
+              if (pendingCard) {
+                pendingCard.classList.add("submitted");
+              }
+              break;
+            }
+
+            case "rolled-back": {
+              // ✗ 롤백 카드 (reason + 자동 역명령 결과).
+              var rCard = document.createElement("div");
+              rCard.className = "rolled-back-card";
+              rCard.dataset.nonce = String(parsed.nonce || "");
+
+              var rLine1 = document.createElement("div");
+              rLine1.textContent = "✗ 롤백 — [" + String(parsed.stack || "?") + "]  사유: " +
+                String(parsed.reason || "(상세 정보 없음)");
+              rCard.appendChild(rLine1);
+
+              if (parsed.rollback_command) {
+                var rLine2 = document.createElement("div");
+                var okText = parsed.rollback_ok === true ? "yes" :
+                  (parsed.rollback_ok === false ? "no" : "?");
+                rLine2.textContent = "  자동 역명령: " + String(parsed.rollback_command) +
+                  "  (성공: " + okText + ")";
+                rCard.appendChild(rLine2);
+              }
+              outputEl.appendChild(rCard);
+
+              // 페어링: 같은 nonce의 approval-card에 'submitted' 표시.
+              var pendingRCard = outputEl.querySelector(
+                '.approval-card[data-nonce="' + String(parsed.nonce || "").replace(/"/g, '\\"') + '"]'
+              );
+              if (pendingRCard) {
+                pendingRCard.classList.add("submitted");
+              }
+              break;
+            }
+
             default:
               // 알 수 없는 이벤트는 무시 (forward-compat).
               break;
           }
+        });
+
+        // ===== Phase 2: 5-key keydown handler (form scope-aware) =====
+        // window scope listener — but only acts when event.target is inside .approval-card.
+        // textarea/input 안에서는 normal 텍스트 입력을 허용 (5-key 비활성).
+        window.addEventListener("keydown", function (ev) {
+          var card = ev.target && ev.target.closest && ev.target.closest(".approval-card");
+          if (!card) return;
+          // 이미 결정 전송 완료된 카드는 추가 입력 무시.
+          if (card.classList.contains("submitted")) return;
+
+          // textarea 안에서는 5-key 비활성 — 정상 텍스트 입력 우선.
+          var tag = ev.target.tagName;
+          if (tag === "TEXTAREA" || tag === "INPUT") return;
+
+          var key = (ev.key || "").toLowerCase();
+          var allowed = ["y", "n", "e", "d", "a"];
+          if (allowed.indexOf(key) < 0) return;
+          ev.preventDefault();
+
+          var nonce = card.dataset.nonce || "";
+          var ta = card.querySelector("textarea.edit");
+
+          // 'd' = diff toggle (서버 호출 0회).
+          if (key === "d") {
+            var pre = card.querySelector("pre.diff");
+            if (pre) pre.classList.toggle("hidden");
+            return;
+          }
+
+          // 'e' = textarea show + focus (서버 호출 0회).
+          if (key === "e") {
+            if (ta) {
+              ta.classList.add("visible");
+              try { ta.focus(); } catch (e) { /* noop */ }
+            }
+            return;
+          }
+
+          // y / n / a = POST /approval/:nonce.
+          // 'y'인데 textarea가 visible + 내용 있으면 'edit' 결정으로 격상 (Open Q 1 lock).
+          var body = new URLSearchParams();
+          var decisionKey = key;
+          var newContent = null;
+          if (key === "y" && ta && ta.classList.contains("visible") && ta.value && ta.value.length > 0) {
+            decisionKey = "e";
+            newContent = ta.value;
+          }
+          body.set("key", decisionKey);
+          if (newContent !== null) {
+            body.set("newContent", newContent);
+          }
+
+          fetch("/approval/" + encodeURIComponent(nonce), {
+            method: "POST",
+            headers: {
+              "x-session-id": (window.__sessionId || "default"),
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: body,
+          }).then(function (res) {
+            if (!res.ok) {
+              return res.json().then(function (envelope) {
+                var errLine = document.createElement("div");
+                errLine.className = "submit-error";
+                errLine.textContent = "✗ 전송 실패: " + String(envelope.problem || ("HTTP " + res.status));
+                card.appendChild(errLine);
+              }).catch(function () {
+                var errLine = document.createElement("div");
+                errLine.className = "submit-error";
+                errLine.textContent = "✗ 전송 실패: HTTP " + res.status;
+                card.appendChild(errLine);
+              });
+            }
+            // 전송 성공 — applied/rolled-back SSE event 도착 대기.
+            card.classList.add("submitted");
+            var status = document.createElement("div");
+            status.className = "submitted-status";
+            status.textContent = "✓ 결정 전송: " + decisionKey + " (서버 응답 대기...)";
+            card.appendChild(status);
+          }).catch(function (e) {
+            var errLine = document.createElement("div");
+            errLine.className = "submit-error";
+            errLine.textContent = "✗ 전송 실패: " + String((e && e.message) || e);
+            card.appendChild(errLine);
+          });
         });
       })();
     </script>
