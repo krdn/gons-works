@@ -430,9 +430,14 @@
           }
         });
 
-        // SSE message dispatch: 6 이벤트 분기 (UI-02).
-        document.body.addEventListener("htmx:sseMessage", function (evt) {
-          var detail = evt.detail;
+        // SSE message dispatch (v1.2 hotfix F-12, 2026-05-07):
+        //   htmx-ext-sse@2.2.4의 `htmx:sseMessage` event는 `sse-swap` 또는 `hx-trigger="sse:*"`
+        //   속성이 있는 element에만 fire된다 (node_modules/htmx-ext-sse/sse.js:101-129 참조).
+        //   우리 sse-connect div는 sse-swap 미사용 → htmx:sseMessage 절대 fire 안 됨.
+        //
+        //   v1.2 fix: htmx:sseOpen event hook으로 EventSource를 획득하여 직접
+        //   named event listener를 부착. textContent-only 보안 lock 보존.
+        function dispatchSseEvent(detail) {
           if (!detail || typeof detail.data !== "string") return;
 
           var parsed;
@@ -690,6 +695,23 @@
               // 알 수 없는 이벤트는 무시 (forward-compat).
               break;
           }
+        }
+
+        // v1.2 hotfix F-12: htmx-ext-sse가 EventSource를 만들 때 fire되는 htmx:sseOpen을 hook.
+        // detail.source가 EventSource 인스턴스 → addEventListener('text-delta', ...) 등 named event 직접 등록.
+        // (htmx:sseMessage는 sse-swap이 있는 element에만 fire되므로 우리 setup에서는 사용 불가.)
+        var SSE_EVENT_TYPES = [
+          "drift", "text-delta", "tool-start", "tool-result", "final", "error",
+          "approval-required", "applied", "rolled-back",
+        ];
+        document.body.addEventListener("htmx:sseOpen", function (evt) {
+          var source = evt.detail && evt.detail.source;
+          if (!source || typeof source.addEventListener !== "function") return;
+          SSE_EVENT_TYPES.forEach(function (t) {
+            source.addEventListener(t, function (msg) {
+              dispatchSseEvent({ type: t, data: msg.data });
+            });
+          });
         });
 
         // ===== Phase 2: 5-key keydown handler (form scope-aware) =====

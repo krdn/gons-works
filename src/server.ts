@@ -254,7 +254,13 @@ function mapKey(key: string, newContent?: string): MappedKey | null {
 
 app.post("/approval/:id", async (c) => {
   const nonce = c.req.param("id")
-  const sessionId = c.req.header("x-session-id") ?? "default"
+  // v1.2 hotfix (F-15, 2026-05-07): sessionId source priority
+  //   1) query ?session-id=  (브라우저가 sse-connect URL에서 sessionId를 받았으니 동일하게 echo 가능)
+  //   2) header x-session-id  (curl + 외부 자동화)
+  //   3) body session-id field  (htmx form parameter)
+  //   4) "default" fallback
+  // 이전 v1.0/v1.1은 헤더만 봐서 chat-stream(query)과 approval(header) 사이 sessionId mismatch 발생 →
+  // approval store가 다른 키를 lookup → "No pending approval".
 
   let body: Record<string, string | File>
   try {
@@ -274,6 +280,13 @@ app.post("/approval/:id", async (c) => {
   const key = typeof body.key === "string" ? body.key : ""
   const newContent =
     typeof body.newContent === "string" ? body.newContent : undefined
+
+  // v1.2 hotfix (F-15): body session-id 우선순위 결정. query → header → body → default.
+  const sessionId =
+    c.req.query("session-id") ??
+    c.req.header("x-session-id") ??
+    (typeof body["session-id"] === "string" ? body["session-id"] : undefined) ??
+    "default"
 
   const mapped = mapKey(key, newContent)
   if (mapped === null) {

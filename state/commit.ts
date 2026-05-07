@@ -68,7 +68,7 @@ export function buildMessage(action: ApplyResult): string {
   return `${subject}\n\n${body}`
 }
 
-// D-D3 / D-04 lock — Bun.spawn -F 임시파일 + cwd 메인 repo 루트 + pathspec 'state/'.
+// D-D3 / D-04 lock — Bun.spawn -F 임시파일 + cwd 메인 repo 루트.
 // 호출자는 production 코드에서 cwd default `.` (메인 repo 루트)을 사용한다.
 // test에서는 임시 git repo 경로로 cwd를 override하여 격리 검증한다.
 //
@@ -78,11 +78,18 @@ export function buildMessage(action: ApplyResult): string {
 //   D-D4 lock(applied/rolled-back만 commit)을 만족시키려면 audit log commit이 필요한데
 //   staged 0건이면 `--allow-empty` 없이는 불가능. caller가 명시적으로 lifecycle-only 흐름임을 알 때
 //   `allowEmpty: true`로 호출. fileEdit 있는 흐름은 false(default) 유지하여 의도치 않은 빈 commit 차단.
+//
+// pathspecs (v1.2 hotfix 2026-05-07, F-14 fix):
+//   기존 v1.1은 spawn argv에 pathspec `'state/'` (디렉토리 전체)를 사용 → unstaged working-tree 변경
+//   까지 캡처되는 audit integrity 위반 (라이브 사고 add0eb4). v1.2는 caller(applyPatch)가 정확한
+//   addPaths를 전달하면 그 list만 pathspec으로 사용. 빈 array(lifecycle-only)면 pathspec 없이
+//   `--allow-empty`만 — staged 변경이 없는 한 빈 commit, 다른 영역 working-tree 변경은 캡처 안 함.
 export async function commitWithMessage(
   message: string,
   nonce: string,
   cwd: string = ".",
   allowEmpty: boolean = false,
+  pathspecs: readonly string[] = ["state/"],
 ): Promise<void> {
   const tmpDir = join(cwd, "data/.tmp")
   if (!existsSync(tmpDir)) {
@@ -96,7 +103,12 @@ export async function commitWithMessage(
     const relTmpFile = join("data/.tmp", `state-msg-${nonce}.txt`)
     const argv = ["git", "commit"]
     if (allowEmpty) argv.push("--allow-empty")
-    argv.push("-F", relTmpFile, "--", "state/")
+    argv.push("-F", relTmpFile)
+    // pathspecs가 비어있으면 (lifecycle-only allow-empty 흐름) pathspec 없이 commit.
+    // 비어있지 않으면 명시 pathspec으로 한정 — unstaged working-tree pollution 차단 (F-14).
+    if (pathspecs.length > 0) {
+      argv.push("--", ...pathspecs)
+    }
     const proc = Bun.spawn(argv, { cwd, stdout: "pipe", stderr: "pipe" })
     const exit = await proc.exited
     if (exit !== 0) {

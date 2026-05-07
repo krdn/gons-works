@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 2 — v1.1 hotfix 완료, 라이브 검증으로 6 defect 발견 (3 fixed, 3 deferred to v1.2)
+**Current focus:** Phase 2 — v1.2 mini hotfix 완료, SC#1 FULL PASS, 라이브 사용자 시각 검증까지 통과
 
 ## Current Position
 
@@ -31,13 +31,16 @@ Overall: [████████░░] 86% (Phase 0/1 complete + Phase 2 코�
 - **F-10 Bun idleTimeout**: src/server.ts `idleTimeout: 0`으로 SSE 30s keep-alive 보존.
 - **F-11 sessionId 누적**: public/index.html `crypto.randomUUID()` + `htmx:configRequest` hook으로 form parameter 부착 + src/server.ts query string 우선순위. 라이브 재검증 PASS (브라우저 EventStream 정상 도달).
 
-### v1.2 deferred (FRICTION F-12/F-13/F-14):
-- **F-12 SSE DOM render**: `htmx:sseMessage` listener가 named event(`event: text-delta` 등) dispatch 안 함. EventStream에는 도착하나 DOM `#output`에 텍스트 미표시. Phase 1 carry-forward (01-08 시점부터). v1.2 fix: `sse-swap` declarative 또는 `htmx:sseBeforeMessage` listener.
-- **F-13 Verification protocol gap**: v1.0 252 unit test pass했으나 라이브에서 4 defect 발견. v1.2 fix: Playwright E2E + mock realism + audit DB primary source.
-- **F-14 audit commit pollution**: `commitWithMessage`의 `git commit -- state/` pathspec이 unstaged working-tree 변경을 캡처. v1.1 audit commit `add0eb4`가 hotfix 변경을 audit 메시지로 묻음. v1.2 fix: `addPaths` 명시 pathspec.
+### v1.2 mini hotfix RESOLVED (commit + push 예정):
+- **F-12 SSE DOM render**: `htmx:sseOpen` event hook으로 EventSource 획득 후 9개 named event 직접 listener 부착. textContent 보안 lock 보존. 라이브 사용자 시각 PASS.
+- **F-14 audit commit pollution**: `commitWithMessage`에 `pathspecs` 파라미터 추가, applyPatch가 `addPaths` 그대로 전달. unstaged working-tree pollution 차단. 라이브 검증: e79d2f0 빈 commit + unstaged services.yaml 보존.
+- **F-15 (신규) approval POST sessionId mismatch**: F-11 fix 후 chat-stream(query)과 approval(header) sessionId source 불일치. POST /approval/:id에 query string 우선순위 추가.
 
-### 라이브 PASS (6/8 ROADMAP SC + audit checks):
-- SC#1 PARTIAL (wire+markup+EventStream PASS, DOM render F-12 BLOCKED → v1.2)
+### v1.3+ deferred:
+- **F-13 Verification protocol gap**: Playwright E2E + mock realism + audit DB primary source. 별도 milestone.
+
+### 라이브 PASS (8/8 ROADMAP SC + audit checks, v1.2 mini hotfix 후):
+- SC#1 **FULL PASS** (wire+markup+EventStream+DOM render+5-key 시각 모두 PASS, F-12 fix 후 라이브 사용자 검증)
 - SC#2 PASS (docker StartedAt 19:32:26.673 KST < git commit 19:32:26+09:00, 라이브 timestamp)
 - SC#3 PASS (단위 test + LLM PROD-safety refusal defense-in-depth)
 - SC#4 PASS (commit add0eb4 D-D1 양식 4 필드 라이브)

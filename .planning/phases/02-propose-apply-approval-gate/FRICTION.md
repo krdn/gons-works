@@ -414,7 +414,7 @@ git reset --hard HEAD~1   # reflog: "reset: moving to HEAD~1"  ← hard/soft 구
 
 ## F-12 — public/index.html SSE handler가 named event를 DOM에 render 안 함 (Phase 1 carry-forward)
 
-**Status:** KNOWN, deferred to v1.2
+**Status:** RESOLVED 2026-05-07 (v1.2 mini hotfix)
 **Severity:** HIGH (SC#1 라이브 시각 검증 BLOCKED — SSE wire는 정상이나 텍스트 화면 미표시)
 **Discovered:** 2026-05-07 (F-11 fix 후 브라우저 재검증 시)
 
@@ -432,12 +432,11 @@ git reset --hard HEAD~1   # reflog: "reset: moving to HEAD~1"  ← hard/soft 구
 - 02-01-SMOKE-LOG-2.md: SSE event 시퀀스 (drift/text-delta/final)는 wire 검증만 했고 DOM render 시각 확인 X
 - 즉 본 결함은 Phase 1 (01-08 public/index.html 작성) 시점부터 존재했으나 verification gap으로 Phase 2까지 미발견
 
-**Fix proposal (v1.2):**
-- 옵션 A: `sse-swap` 속성을 사용한 declarative 패턴 (htmx-ext-sse 권장)
-- 옵션 B: `htmx:sseBeforeMessage` listener로 named event capture
-- 옵션 C: htmx-ext-sse 우회하여 EventSource 직접 새 코드 + addEventListener('text-delta', ...) 
-
-옵션 A가 htmx 디자인 철학에 부합. 그러나 textContent-only 보안 lock 유지 필요 (innerHTML XSS gate 보존).
+**Fix applied (v1.2 mini hotfix):**
+- 옵션 C 변형 채택 — `htmx:sseOpen` event hook으로 EventSource 인스턴스 획득 후 9개 named event(`drift`, `text-delta`, `tool-start`, `tool-result`, `final`, `error`, `approval-required`, `applied`, `rolled-back`) 모두에 직접 `addEventListener` 부착
+- 기존 `htmx:sseMessage` switch 분기 코드는 `dispatchSseEvent(detail)` 함수로 분리하여 재사용
+- textContent-only 보안 lock 그대로 유지 (innerHTML XSS gate 0)
+- 라이브 사용자 시각 검증 PASS — 텍스트 답변 + 5-key 카드 + 인라인 legend visible (2026-05-07)
 
 **Verification gap lesson (F-12에서 확정):**
 - v1.0+v1.1까지 252+ unit tests + curl wire 검증 통과했으나 라이브 브라우저 DOM render는 처음 검증
@@ -472,7 +471,7 @@ Phase 2 v1.0 (252 unit tests pass + tsc clean)으로는 production-ready 판정�
 
 ## F-14 — applyPatch audit commit이 unstaged working-tree pollution 캡처 (AUDIT-02 integrity 위반)
 
-**Status:** ACCEPTED v1.1 trade-off, fix scheduled for v1.2
+**Status:** RESOLVED 2026-05-07 (v1.2 mini hotfix)
 **Severity:** HIGH (audit log integrity 일시적 손상)
 **Discovered:** 2026-05-07 (v1.1 hotfix 라이브 검증 도중 실시간 발견)
 
@@ -501,7 +500,44 @@ Phase 2 v1.0 (252 unit tests pass + tsc clean)으로는 production-ready 판정�
 - 다른 audit commit들은 영향 없음 (이번 사고는 사용자가 편집 → 서버 재시작 사이의 race)
 - AUDIT-02 grep은 commit message 양식 lock만 검증하고 actual diff는 검증 안 함 → 일시적 partial PASS
 
-**Trade-off acceptance (옵션 B):**
-- v1.1 PR에 `add0eb4` 그대로 land (revert는 추가 noise)
-- F-14 FRICTION 명시 + v1.2 backlog 추가
-- 운영자에게 명확히 알림: "v1.1 시점의 audit log는 unstaged pollution 위험 — v1.2 fix까지 라이브 환경에서 `state/` 편집 + applyPatch 동시 실행 회피"
+**Fix applied (v1.2 mini hotfix):**
+- `state/commit.ts commitWithMessage`에 `pathspecs: readonly string[]` 5번째 파라미터 추가 (default `["state/"]` backward-compat)
+- 빈 array면 spawn argv에 pathspec 없이 commit (lifecycle-only `--allow-empty` 흐름)
+- 비어있지 않으면 명시 pathspec만 → unstaged working-tree pollution 차단
+- `tools/applyPatch.ts`에서 `addPaths`를 그대로 5번째 파라미터로 전달
+- 신규 unit test 2건: F-14 working tree pollution scenario + 명시 pathspec 격리
+- 라이브 재검증 PASS: apply commit `e79d2f0` (F-14 fix 후)는 빈 commit, unstaged services.yaml 변경은 working tree에 그대로 보존
+
+**Trade-off note:**
+- v1.1 시점의 audit commit `add0eb4`는 묻혀있는 hotfix 변경을 그대로 main에 보존 (revert noise 회피)
+- v1.2 이후 새 audit commit은 깨끗한 D-D1 양식만 기록 (`e79d2f0` 증거)
+
+---
+
+## F-15 — POST /approval/:id sessionId mismatch (chat-stream과 불일치, F-11 fix의 hidden dependency)
+
+**Status:** RESOLVED 2026-05-07 (v1.2 mini hotfix)
+**Severity:** HIGH (F-11 적용 후 approval flow 자체가 차단)
+**Discovered:** 2026-05-07 (v1.2 라이브 재검증 시점)
+
+**Symptom:**
+- F-11 fix 후 chat-stream은 `?session-id=v12-test` query로 sessionId 격리
+- approval store는 chat-stream의 sessionId(예: `v12-test`)로 nonce 등록
+- POST /approval/:nonce는 `c.req.header("x-session-id")`만 봄 → curl 요청에 헤더 없으면 `default` lookup → "No pending approval"
+- F-11 fix 가 chat-stream + approval flow의 sessionId 동기화를 누락했음
+
+**Root cause:**
+- F-11 fix 시점에 server.ts의 두 핸들러 중 chat-stream만 query string 우선순위 추가
+- approval POST는 그대로 헤더 fallback만 — sessionId source 불일치
+
+**Fix (v1.2 mini hotfix):**
+- src/server.ts POST /approval/:id의 sessionId source priority:
+  1) `c.req.query("session-id")` (F-15 신규 추가 — 브라우저가 URL에 echo 가능, curl 권장)
+  2) `c.req.header("x-session-id")` (외부 자동화 fallback, 기존)
+  3) `body["session-id"]` (htmx form parameter)
+  4) `"default"` fallback
+- 브라우저 fetch는 이미 `x-session-id` 헤더 부착하므로 추가 변경 불필요
+
+**Live re-verification:**
+- v12b-1778152834 sessionId로 chat-stream → approval POST → outcome=applied 정상
+- audit DB: tool_name=applyPatch, ok=1, outcome=applied

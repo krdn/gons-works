@@ -290,5 +290,67 @@ describe("state/commit", () => {
         commitWithMessage("subject\n\nbody", guardNonce, tmp /* allowEmpty default false */),
       ).rejects.toThrow(/git commit 실패/)
     })
+
+    test("v1.2 hotfix (F-14): pathspecs=[] + allowEmpty=true → unstaged working-tree pollution 캡처 안 함", async () => {
+      // baseline commit 먼저.
+      const baseCommit = Bun.spawn(["git", "commit", "-m", "baseline"], { cwd: tmp })
+      await baseCommit.exited
+
+      // unstaged 변경 시뮬: state/marker.json을 working tree에서만 수정 (git add 안 함).
+      writeFileSync(join(tmp, "state/marker.json"), '{"x":2,"unstaged":true}')
+
+      // staged 비우기.
+      const reset = Bun.spawn(["git", "reset"], { cwd: tmp })
+      await reset.exited
+
+      const lifecycleNonce = crypto.randomUUID()
+      // pathspecs=[] (lifecycle-only) + allowEmpty=true → 빈 commit, working tree 변경 캡처 안 함.
+      await commitWithMessage(
+        "apply(news): compose restart\n\nNonce: " + lifecycleNonce,
+        lifecycleNonce,
+        tmp,
+        true,
+        [], // empty pathspecs
+      )
+
+      // commit 확인 + diff가 비어있어야 함 (F-14 회귀 방지의 핵심).
+      const showStat = Bun.spawn(["git", "show", "--stat", "HEAD"], { cwd: tmp, stdout: "pipe" })
+      await showStat.exited
+      const statText = await new Response(showStat.stdout).text()
+      // "0 files changed" 또는 stat 자체가 없는 빈 commit.
+      expect(statText).not.toMatch(/state\/marker\.json/)
+
+      // working tree 변경은 그대로 살아있어야 함 (commit에 묻혀 사라지면 안 됨).
+      const fileText = await Bun.file(join(tmp, "state/marker.json")).text()
+      expect(fileText).toContain("unstaged")
+    })
+
+    test("v1.2 hotfix (F-14): pathspecs=['state/file.json'] + staged file → 명시 pathspec만 commit", async () => {
+      // baseline commit 먼저.
+      const baseCommit = Bun.spawn(["git", "commit", "-m", "baseline"], { cwd: tmp })
+      await baseCommit.exited
+
+      // 두 파일 변경: file-a.json은 stage, file-b.json은 unstaged.
+      writeFileSync(join(tmp, "state/file-a.json"), '{"a":1}')
+      writeFileSync(join(tmp, "state/file-b.json"), '{"b":1,"unstaged":true}')
+      const addA = Bun.spawn(["git", "add", "state/file-a.json"], { cwd: tmp })
+      await addA.exited
+
+      const filteredNonce = crypto.randomUUID()
+      // pathspec으로 file-a.json만 명시 → file-b.json은 unstaged이고 pathspec에도 없으므로 commit 안 됨.
+      await commitWithMessage(
+        "apply(news): file edit\n\nNonce: " + filteredNonce,
+        filteredNonce,
+        tmp,
+        false,
+        ["state/file-a.json"],
+      )
+
+      const show = Bun.spawn(["git", "show", "--stat", "HEAD"], { cwd: tmp, stdout: "pipe" })
+      await show.exited
+      const showText = await new Response(show.stdout).text()
+      expect(showText).toContain("state/file-a.json")
+      expect(showText).not.toContain("state/file-b.json")
+    })
   })
 })
