@@ -79,14 +79,14 @@ completed: 2026-05-07
 
 ## Performance
 
-- **Duration:** 약 50분 (PLAN 추정 90분의 55%)
+- **Duration:** 약 55분 (PLAN 추정 90분의 61%)
 - **Started:** 2026-05-07T08:05:00+09:00 (대략)
-- **Completed:** 2026-05-07T08:55:00+09:00 (대략)
-- **Commits:** 3 (chore + RED + GREEN)
+- **Completed:** 2026-05-07T09:00:00+09:00 (대략)
+- **Commits:** 5 (chore + RED + GREEN + SUMMARY + reverse mapping 보강)
 - **Files created:** 3 (applyPatch.ts / applyPatch.test.ts / state/.pending/.gitkeep)
 - **Files modified:** 1 (state/.gitignore — negation rule)
-- **Tests:** 12 / 12 pass / 0 fail / 64 expect calls (32ms 실행)
-- **Regression:** 0 (전체 222 / 0 fail / 4 skip)
+- **Tests:** 16 / 16 pass / 0 fail / 81 expect calls (47ms 실행)
+- **Regression:** 0 (전체 226 / 0 fail / 4 skip)
 
 ## Accomplishments
 
@@ -107,27 +107,33 @@ completed: 2026-05-07
 | 1 | `ffa4cf4` | chore | state/.pending/ 디렉토리 + .gitkeep + .gitignore negation |
 | 2 | `9574f7f` | test | applyPatch RED — 8+ 시나리오 + APPLY_TEST_MODE seam (모듈 부재로 fail) |
 | 3 | `b32b2ae` | feat | applyPatch 2PC orchestrator + APPLY_TEST_MODE seam (D-A5/B3/C1/C3/C4/D4) |
+| 4 | `5618671` | docs | SUMMARY — applyPatch 2PC orchestrator (D-A5/B3/C1/C3/C4/D4) |
+| 5 | `5d5ed83` | test | D-B3 reverse mapping 보강 — 12→16 시나리오 (4 매핑 모두 직접 검증) |
 
-총 **3 commits** (chore + RED + GREEN). REFACTOR 단계는 advisor 4 bug가 GREEN 단계 한 commit에 모두 포함되어 별도 분리 안 함 — 코드 단순성 충분.
+총 **5 commits** (chore + RED + GREEN + SUMMARY + reverse mapping 보강). 보강 commit은 advisor 후속 권고에 따라 REVERSE_DOCKER 매핑 표 typo 회귀 방지력 강화 (1건만 직접 검증되던 것을 4건 모두 직접 검증).
 
 ## Files Created/Modified
 
 ### Created
 
 - `tools/applyPatch.ts` (646 LoC) — 2PC orchestrator + dependencies object (sshExec/sshWriteFile/sshReadFile/gitAdd/commitWithMessage/gitRevParseHead) + makeDefaultDependencies() APPLY_TEST_MODE 분기 + helper builders + REVERSE_DOCKER mapping + marker helpers (write/update/delete/existing).
-- `tools/applyPatch.test.ts` (558 LoC) — 12 시나리오:
+- `tools/applyPatch.test.ts` (679 LoC) — 16 시나리오:
   1. D-C4 marker 존재 시 503 reject
   2. happy path 무 fileEdit (compose restart)
   3. happy path with fileEdit (compose up -d + image bump)
   4. D-A4 mirror staleness drift 감지
   5. (iii) sshWriteFile fail → state mirror revert + marker delete + throw
   6. (iv) docker exit≠0 → 원격/state revert + outcome=rolled-back + git commit 호출 0
-  7. (v) git commit fail D-B3 → 역 docker (compose down) + rollback_command/rollback_ok 보고
-  8. (v) compose ps에서 git fail → rollback_command=undefined (read-only)
-  9. decision='edited' newContent override가 fileEdit에 반영
-  10. D-C3 marker 점진 update (docker_started_at → finished_at + exit_code 두 단계)
-  11. APPLY_TEST_MODE=1 — sshWriteFile no-op + sshReadFile 로컬 미러
-  12. APPLY_TEST_MODE 미설정 — default deps 함수 시그니처 검증
+  7. (v) git commit fail D-B3 'compose up -d' → 'compose down' (역방향)
+  8. D-B3 매핑 'compose down' → 'compose up -d' (역방향, 보강)
+  9. D-B3 매핑 'compose stop' → 'compose start' (역방향, 보강)
+  10. D-B3 매핑 'compose restart' → 'compose restart' (idempotent, 보강)
+  11. D-B3 매핑 'compose logs --tail=200' → null (read-only, 보강)
+  12. (v) compose ps에서 git fail → rollback_command=undefined (read-only)
+  13. decision='edited' newContent override가 fileEdit에 반영
+  14. D-C3 marker 점진 update (docker_started_at → finished_at + exit_code 두 단계)
+  15. APPLY_TEST_MODE=1 — sshWriteFile no-op + sshReadFile 로컬 미러
+  16. APPLY_TEST_MODE 미설정 — default deps 함수 시그니처 검증
 - `state/.pending/.gitkeep` (0 LoC) — 디렉토리 placeholder.
 
 ### Modified
@@ -310,9 +316,9 @@ APPLY_TEST_MODE=1 환경변수 설정 후 `bun run scripts/test-apply-patch.ts` 
 - ✓ `grep -c "APPLY_TEST_MODE" tools/applyPatch.ts` = 6 (≥2)
 - ✓ `test -f state/.pending/.gitkeep` PASS
 - ✓ `grep "^!.*\.gitkeep$" state/.gitignore` 매치
-- ✓ `bun test tools/applyPatch.test.ts` 12 pass / 0 fail / 64 expect (32ms)
+- ✓ `bun test tools/applyPatch.test.ts` 16 pass / 0 fail / 81 expect (47ms)
 - ✓ `APPLY_TEST_MODE=1 bun test tools/applyPatch.test.ts -t "APPLY_TEST_MODE"` 2 pass
-- ✓ 전체 `bun test` 222 pass / 0 fail / 4 skip — 회귀 0
+- ✓ 전체 `bun test` 226 pass / 0 fail / 4 skip — 회귀 0
 - ✓ PROD 누수 검증: `ssh gon@192.168.0.5 'docker ps -a --filter name=gons-test- --format "{{.Names}}" ; docker ps -a --filter name=test-svc --format "{{.Names}}"'` empty (0 컨테이너) — **PROD 누수 0 확인**
 
 ---
