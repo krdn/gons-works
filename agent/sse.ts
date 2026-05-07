@@ -1,7 +1,8 @@
-// agent/sse.ts — UI-02 5 named SSE event(+drift = 6) taxonomy + LOOP-06 60s chunk watchdog.
+// agent/sse.ts — UI-02 9 named SSE event taxonomy (Phase 1 6 + Phase 2 +3) + LOOP-06 60s chunk watchdog.
 //
 // Public API:
-//   SseEvent             — 6 event type union (text-delta / tool-start / tool-result / final / error / drift)
+//   SseEvent             — 9 event type union (Phase 1: text-delta / tool-start / tool-result / final / error / drift
+//                           + Phase 2 Plan 02-07: approval-required / applied / rolled-back)
 //   SseFrame             — { event, data } shape (Hono streamSSE 인자)
 //   toSSEFrame(ev)       — SseEvent → SseFrame 변환 (event 이름 = ev.type)
 //   SSE_CHUNK_TIMEOUT_MS — D-15.3 60s lock (60_000)
@@ -9,28 +10,62 @@
 //   createChunkWatchdog(onTimeout, timeoutMs?) — 60s no-chunk watchdog 생성
 //
 // 핵심 결정:
-//   UI-02         — 6 named SSE event lock (UI-SPEC.md "SSE 이벤트 → DOM 매핑" 표 매칭).
+//   UI-02         — 9 named SSE event lock (UI-SPEC.md "SSE 이벤트 → DOM 매핑" 표 매칭).
+//                   Phase 2 추가 3 event는 5-key approval gate UI 카드 + 결과 표시용.
 //   D-13.4 + KB-03 — drift 이벤트는 별도 sse-name (text-delta에 믹스 안 함).
 //   LOOP-06       — server.ts가 createChunkWatchdog로 60s no-chunk 시 stream close.
+//                   Plan 02-07: agent/loop.ts가 30s keep-alive interval로 approval 대기 중 watchdog reset.
 //   D-15.3        — 60s chunk timeout = envelope shape (problem/cause/fix/retryable).
 //                   tool 30s timeout(_envelope.ts)과 별도지만 동일 envelope 패턴.
 
-// Phase 1 SSE event taxonomy — UI-02 lock + UI-SPEC.md DOM 매핑.
+// Phase 1 + Phase 2 SSE event taxonomy — UI-02 lock + UI-SPEC.md DOM 매핑.
 //
-// 6 event types:
-//   text-delta   — LLM text chunk (#output에 beforeend swap)
-//   tool-start   — tool 호출 시작 (.tool-event 카드 생성)
-//   tool-result  — tool 호출 종료 (.tool-event 카드 업데이트)
-//   final        — turn 종료 (#status-bar에 "✓ 완료")
-//   error        — D-15.4 envelope (#error-banner 빨간 배너)
-//   drift        — KB-03 / D-13.4 staleness (#drift-banner amber 배너)
+// 9 event types (Phase 1 6 + Phase 2 +3):
+//   text-delta        — LLM text chunk (#output에 beforeend swap)
+//   tool-start        — tool 호출 시작 (.tool-event 카드 생성)
+//   tool-result       — tool 호출 종료 (.tool-event 카드 업데이트)
+//   final             — turn 종료 (#status-bar에 "✓ 완료")
+//   error             — D-15.4 envelope (#error-banner 빨간 배너)
+//   drift             — KB-03 / D-13.4 staleness (#drift-banner amber 배너)
+//   approval-required — Plan 02-07 (UI-02 +3) — 5-key 게이트 카드 표시 (proposePatch tool 후)
+//   applied           — Plan 02-07 (UI-02 +3) — applyPatch 성공 (sha_after + duration_ms)
+//   rolled-back       — Plan 02-07 (UI-02 +3) — applyPatch 실패 + 자동 역 docker 시도
 export type SseEvent =
+  // Phase 1 (carry-forward unchanged)
   | { type: "text-delta"; delta: string }
   | { type: "tool-start"; name: string; args: unknown }
   | { type: "tool-result"; name: string; ok: boolean; summary: string }
   | { type: "final" }
   | { type: "error"; problem: string; cause: string; fix: string; retryable: boolean }
   | { type: "drift"; message: string; unknown: string[]; stale: string[] }
+  // Phase 2 (Plan 02-07, UI-02 +3)
+  | {
+      type: "approval-required"
+      nonce: string
+      stack: string
+      command: string
+      service: string
+      diff: string
+      reasoning: string
+      expiresAt: number
+    }
+  | {
+      type: "applied"
+      nonce: string
+      stack: string
+      command: string
+      service: string
+      sha_after: string
+      duration_ms: number
+    }
+  | {
+      type: "rolled-back"
+      nonce: string
+      stack: string
+      reason: string
+      rollback_command?: string
+      rollback_ok?: boolean
+    }
 
 // Hono streamSSE는 { event, data } 객체를 받는다 (event는 SSE name, data는 string payload).
 export interface SseFrame {
