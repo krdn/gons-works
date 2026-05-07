@@ -5,14 +5,19 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 2 — Propose/Apply with Approval Gate (Wave 1+2 완료, Wave 3 시작 — 02-07/08/09 병렬)
+**Current focus:** Phase 2 — Propose/Apply with Approval Gate (Wave 1/2/3 완료, Wave 4 시작 — 02-10 verification)
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 3 시작 (02-07/08/09 병렬 dispatch)
-Plan: 6 of 10 PASS (D-E1, 02-02, 02-03, 02-04, 02-05, 02-06) / 4 plans pending (02-07..02-10)
-Status: Wave 2 완료 — 02-05 proposePatch + system-prompt Phase 2(16 PASS, 5 commits, advisor sign-off), 02-06 applyPatch 2PC orchestrator + APPLY_TEST_MODE seam + D-B3 reverse mapping(16 PASS, 6 commits, 55분 ≪ 90 예산). 226/230 전체 PASS (4 skip). PROD 깨끗 재확인. 02-04에서 발견한 PROD safety incident 02-06에 belt-and-suspenders로 lock(--context default explicit positional + DOCKER_CONTEXT env 둘 다).
-Last activity: 2026-05-07 — Wave 2 완료. Wave 3 (02-07 sse+loop interrupt+resume / 02-08 server.ts approval route + recoverPendingMarkers / 02-09 public/index.html 5-key form) 3개 plan 병렬 dispatch 진행.
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 4 시작 (02-10 E2E + AUDIT-02 + crash sim + DOG-03 + backlog)
+Plan: 9 of 10 PASS (D-E1, 02-02 ~ 02-09) / 1 plan pending (02-10)
+Status: Wave 3 완료 — 02-07 SSE 9-event union + agent/loop interrupt+resume + 30s keep-alive(39 PASS), 02-08 POST /approval/:id route + recoverPendingMarkers + APPLY-08 (23 PASS), 02-09 public/index.html 5-key form + 인라인 legend + 보안 lock (innerHTML XSS gate 0). agent/loop.ts auto-merge OK (02-07 + 02-08 hunks 분리). 252/256 전체 PASS (4 skip). PROD 깨끗 재확인. integration risk 1건(orchestrator dispatch prompt vs PLAN.md body schema)는 두 executor 모두 PLAN.md를 canonical로 채택해서 자동 보정.
+Last activity: 2026-05-07 — Wave 3 완료. Wave 4 (02-10 E2E 5 SC + AUDIT-02 git log + crash sim + DOG-03 /ship + FRICTION + 3 backlog 통합 fix) dispatch 진행.
+
+### 02-10에서 통합 fix할 backlog (Wave 1-3 누적):
+- (1) hook `reset:*hard*` glob 패턴 결함 → `reset:*` 전체 reset 거부로 보강
+- (2) tools/_envelope.ts:85,87 TS2454 (Phase 1 carry-forward)
+- (3) src/server.test.ts:416 PendingMarkerFields type narrowing (Wave 3 통합 후 발견)
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
