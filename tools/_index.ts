@@ -10,6 +10,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk"
 import { z } from "zod"
+import { ProposePatchInput } from "./proposePatch"
 
 // listContainers — READ-01
 // 192.168.0.5 home-server 컨텍스트의 docker 컨테이너 목록.
@@ -58,6 +59,21 @@ export const TOOL_SCHEMAS: Anthropic.Tool[] = [
     description:
       "192.168.0.5의 docker-compose 파일 내용을 ssh로 읽어온다. composePath는 운영 서버의 절대 경로.",
     input_schema: z.toJSONSchema(ReadComposeInput) as Anthropic.Tool["input_schema"],
+  },
+  // proposePatch — APPLY-01 + D-B1/B2/D2 (Phase 2).
+  // 단일 propose tool — apply 단계는 LLM에 노출 안 함 (D-B2 lock — internal call after approval).
+  {
+    name: "proposePatch",
+    description: [
+      "192.168.0.5 운영 서버의 docker compose 변경을 unified diff로 제안한다.",
+      "운영자가 5-key 게이트(y=apply / n=reject / e=edit / d=diff / a=abort)로 승인해야만 적용된다.",
+      "fileEdit이 None이면 command만 실행 (재시작/중지 등 — 파일 변경 없음).",
+      "reasoning 필드에 무엇을 왜 변경하는지 1-2문장 한국어로 작성 (max 500자, git commit body의 AI-Reasoning이 됨).",
+      "허용 command (D-B1 7개): compose up -d / down / restart / start / stop / logs --tail=200 / ps.",
+      "허용 fileEdit.path: state/compose/{stack}.yml 또는 state/services.yaml만.",
+      "stack 4개(news/ais/n8n/krdn-fx) — open-webui는 plain docker run으로 v2 backlog.",
+    ].join(" "),
+    input_schema: z.toJSONSchema(ProposePatchInput) as Anthropic.Tool["input_schema"],
   },
 ]
 

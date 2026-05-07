@@ -2,7 +2,7 @@
 //
 // Public API:
 //   ProposePatchInput  — Zod schema strict (D-B1 7-command union literal +
-//                        D-A1 Option A 4-stack(open-webui v2) + D-D2 reasoning 필수 max 500
+//                        D-A1 Option A 4-stack + D-D2 reasoning 필수 max 500
 //                        + service refine + fileEdit.path 화이트리스트).
 //   proposePatch()     — args 파싱 → fileEdit이 있으면 jsdiff createPatch로 unified diff 생성,
 //                        없으면 "(no file change — command only: ...)" 배너 → crypto.randomUUID()로
@@ -11,9 +11,9 @@
 //
 // 핵심 결정 (.planning/phases/02-propose-apply-approval-gate/02-CONTEXT.md):
 //   - D-B1: 7-union command literal — AI 자유 + deny-list 우회를 화이트리스트로 차단.
-//   - D-B2: 단일 proposePatch tool, applyPatch는 LLM 미노출 — internal call after approval.
+//   - D-B2: 단일 propose tool, apply 단계는 LLM 미노출 — internal call after approval.
 //   - D-D2: reasoning 필수, max 500 — git commit body의 AI-Reasoning이 됨.
-//   - D-A1 (Option A): 4-stack(news/ais/n8n/krdn-fx). open-webui는 plain docker run, v2 backlog.
+//   - D-A1 (Option A): 4-stack(news / ais / n8n / krdn-fx). 5번째 stack은 plain docker run으로 v2 backlog.
 //
 // 패턴 analog (Phase 1):
 //   - Zod schema export + z.infer<>: tools/_index.ts:16-39 (ListContainersInput 등).
@@ -32,7 +32,7 @@ import {
 // === Zod schema ===
 
 // D-B1 7-command union literal — approval/store.ts:22-29 ComposeCommand와 1:1 매칭.
-// D-A1 Option A 4-stack — open-webui 제외 (plain docker run, v2 backlog).
+// D-A1 Option A 4-stack — 5번째 stack은 plain docker run이라 제외 (v2 backlog).
 // D-D2 reasoning min 1 + max 500 — D-D1 git commit body source.
 // service refine — 'compose ps'는 svc 없이 OK, 나머지는 필수.
 // fileEdit.path 화이트리스트 — state/compose/{stack}.yml 또는 state/services.yaml만.

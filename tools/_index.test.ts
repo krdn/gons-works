@@ -10,8 +10,28 @@ import {
 // DESIGN.md correction #3 검증: z.toJSONSchema가 의미 있는 schema를 반환 (빈 {} 아님).
 
 describe("tools/_index: TOOL_SCHEMAS shape", () => {
-  test("TOOL_SCHEMAS는 정확히 3개의 read tool을 export한다", () => {
-    expect(TOOL_SCHEMAS).toHaveLength(3)
+  test("TOOL_SCHEMAS는 정확히 4개 tool을 export한다 (3 read + proposePatch)", () => {
+    expect(TOOL_SCHEMAS).toHaveLength(4)
+  })
+
+  test("D-B2 lock — applyPatch는 LLM에 노출 안 함 (internal call only)", () => {
+    expect(TOOL_SCHEMAS.find((t) => t.name === "applyPatch")).toBeUndefined()
+  })
+
+  test("proposePatch schema에 stack, command, reasoning properties 존재 + reasoning maxLength=500", () => {
+    const tool = TOOL_SCHEMAS.find((t) => t.name === "proposePatch")
+    expect(tool).toBeDefined()
+    const schema = tool!.input_schema as {
+      properties?: Record<string, unknown>
+    }
+    expect(schema.properties).toBeDefined()
+    expect(schema.properties!.stack).toBeDefined()
+    expect(schema.properties!.command).toBeDefined()
+    expect(schema.properties!.reasoning).toBeDefined()
+
+    // D-D2 lock: reasoning max 500.
+    const reasoningJson = JSON.stringify(schema.properties!.reasoning)
+    expect(reasoningJson).toMatch(/"maxLength":\s*500/)
   })
 
   test("모든 schema의 input_schema.type === 'object' (Anthropic 호환)", () => {
