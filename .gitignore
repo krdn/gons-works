@@ -458,3 +458,9 @@ coverage/
 # tmp/ — diagnostic spikes, scratch scripts (plan 단위로 정리)
 /tmp/
 
+
+# Claude Code worktree state (per-agent transient)
+/.claude/
+
+# memsearch local memory cache
+/.memsearch/
