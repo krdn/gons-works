@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — D-E1 게이트 FAIL, 02-02 이후 보류
-Plan: 1 executed (1 FAIL — D-E1 lock-in) / 10 total
-Status: Phase 2 plan 02-01 (D-E1 pre-execute gate) 실행 완료 / FAIL — Phase 1 carry-forward 2건 + Voyage 함정 1건 lock-in (FRICTION F-1/F-2/F-3). 02-02..02-10 진입 차단. Phase 1 hotfix 결정 대기.
-Last activity: 2026-05-07 — Plan 02-01 라이브 smoke 실행: Step A Voyage 회전 PASS (1024 dim), Criteria #1 FAIL (400 invalid_request_error req_011Canaq7qP5ZbJXfECrMDt5), Criteria #2/#3 BLOCKED, Criteria #4 audit DB PASS (13 rows). 02-01-SMOKE-LOG.md + FRICTION.md commit f886d54.
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — Phase 1 hotfix(01-10) 완료, D-E1 재검증 대기
+Plan: Phase 1 plan 01-10 hotfix 완료 / Phase 2 plan 02-01 D-E1 재실행 대기
+Status: F-1 (compactHistory array aliasing) + F-2 (SSE pendingWrites flush) RESOLVED. agent/loop.ts + src/server.ts 수정 + 회귀 방지 test 5개 추가. 158/0 PASS. D-E1 재실행(`/gsd-execute-phase 2 --plan 01`) → 5/5 PASS 도달 시 02-02..02-10 진입 unblock 예상.
+Last activity: 2026-05-07 — Plan 01-10 (carry-back hotfix) 5 task 완료 / 6 commit. compactHistory가 항상 새 array 반환하도록 변경, server.ts emit 큐+Promise.allSettled flush 적용. 진단 spike 4개로 H4(array aliasing) 확정 (H1/H2/H3 reject). FRICTION.md 양방향 동기화.
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
