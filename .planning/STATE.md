@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 1 — Read-Only Knowledge Layer (✅ code-complete, awaiting operator smoke)
+**Current focus:** Phase 2 — Propose/Apply with Approval Gate (CONTEXT 작성 완료, ready for plan-phase)
 
 ## Current Position
 
-Phase: 1 of 3 (Read-Only Knowledge Layer) — ✅ COMPLETE (code), awaiting live smoke
-Plan: 9 of 9
-Status: All 4 waves merged. 22/22 REQ-IDs unit/integration PASS. 153/157 tests PASS (4 E2E skipped). ROADMAP Success Criteria #5 (hard cap) unit-PASS. #1/#2/#3/#4 deferred to operator runtime smoke.
-Last activity: 2026-05-07 — Phase 1 종료: Wave 4 머지(public/index.html htmx UI + VERIFICATION/FRICTION 문서)
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — CONTEXT gathered, ready for plan-phase
+Plan: 0 of TBD
+Status: Phase 1 ✅ code-complete + 22/22 REQ-IDs unit/integration PASS / Phase 2 discuss 종료 — 14 결정 + 1 게이팅 lock (D-A1..A5, D-B1..B3, D-C1..C4, D-D1..D4, D-E1)
+Last activity: 2026-05-07 — Phase 2 discuss 완료: 4 area + 1 post-advisor area, CONTEXT.md + DISCUSSION-LOG.md 작성
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
@@ -81,11 +81,32 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-07
-Stopped at: Phase 1 execute 완료 — 9/9 plans 4 waves 모두 머지 + 22/22 REQ-IDs unit/integration PASS + 153 tests PASS. ROADMAP Success Criteria #1-#4 라이브 smoke 보류.
-Resume file: .planning/phases/01-read-only-knowledge-layer/01-VERIFICATION.md (전체 검증 결과)
-Next: (선택) operator runtime smoke (위 Blockers/Concerns 5단계) → Phase 2 진행 (`/gsd-spec-phase 2` 또는 `/gsd-discuss-phase 2`)
-Outstanding operator actions: (1) VOYAGE_API_KEY 회전 (2) Phase 1 live runtime smoke
-Recommended: /clear 먼저 (이 세션 컨텍스트 매우 길어짐)
+Stopped at: Phase 2 discuss 완료 — 4 area 14 결정 + 1 게이팅 lock + 1 post-advisor area. CONTEXT.md + DISCUSSION-LOG.md 작성 완료.
+Resume file: .planning/phases/02-propose-apply-approval-gate/02-CONTEXT.md
+Next: `/gsd-plan-phase 2` (CONTEXT 입력 lock, plan 첫 task = D-E1 Phase 1 live smoke gate)
+Outstanding operator actions (pre-execute gate D-E1, plan 첫 task로 wrap): (1) VOYAGE_API_KEY 회전 (2) Phase 1 live runtime smoke 5단계
+Recommended: /clear 후 /gsd-plan-phase 2
+
+### Phase 2 carry-forward 요약 (재논의 금지)
+
+- **Patch 범위 (D-A1)**: state/compose/{stack}.yml 5 미러 + state/services.yaml. 원격 docker-compose.yml 직접 SCP 쓰기는 v2.
+- **미러 init (D-A2)**: scripts/init-state-compose.ts SSH cat × 5 → 1회 commit, 이후 applyPatch만.
+- **Verify env (D-A3)**: 192.168.0.8 로컬 test compose stack (alpine 더미 2개), DOCKER_CONTEXT=default 일시 전환.
+- **Drift (D-A4)**: kb/stale-check.ts Phase 1 그대로. mirror staleness는 applyPatch 진입 시 1회만.
+- **Docker 호출 (D-A5)**: SSH 경유 (`ssh gon@192.168.0.5 'cd /원격경로/{stack} && docker compose <cmd>'`). `--context home-server -f` 패턴 금지.
+- **Command 화이트리스트 (D-B1)**: compose up -d / down / restart / start / stop / logs --tail / ps 7개 union literal.
+- **Tool schema (D-B2)**: 단일 proposePatch tool { stack, command, fileEdit?, reasoning }.
+- **Git fail rollback (D-B3)**: docker 성공 + git commit 실패 시 역 docker rollback 시도 + envelope alert.
+- **Marker lifecycle (D-C1)**: state/.pending/{nonce}.json — docker exec 직전 write, git commit 직후 delete.
+- **Boot detect (D-C2)**: 자동 복구 X, SSE drift event + 수동 복구 a/b/c 안내.
+- **Marker schema (D-C3)**: 점진 update — docker_started_at / docker_finished_at / exit_code.
+- **Concurrency (D-C4)**: marker 존재 시 새 applyPatch reject + 503.
+- **Commit msg (D-D1)**: `apply(<stack>): <command> [<summary>]` + body 구문화 (User-Prompt / AI-Reasoning / Diff-Summary / Nonce).
+- **Reasoning source (D-D2)**: proposePatch tool input의 reasoning 필드 (Zod 필수).
+- **Sanitization (D-D3)**: 필드별 cap (200/500/100자) + spawn -F 임시파일 + -- 분리자.
+- **Commit 정책 (D-D4)**: applied / rolled-back만 git commit, 나머지(rejected/aborted/expired)는 SQLite events만.
+- **Pre-execute gate (D-E1)**: Phase 2 plan 첫 task = Phase 1 live smoke 5단계 + VOYAGE 키 회전.
+- **Research artifact correction**: ARCHITECTURE.md Pattern 4 prose는 git→docker로 적혀 있으나 REQUIREMENTS APPLY-04 + ROADMAP SC#2가 docker→git lock. PITFALLS Pitfall 2 prevention 코드와도 일치. Planner는 docker→git 순서 따름.
 
 ### Phase 1 carry-forward 요약 (재논의 금지)
 
