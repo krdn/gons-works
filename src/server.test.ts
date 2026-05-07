@@ -412,7 +412,18 @@ describe("Plan 02-08: recoverPendingMarkers + buffered drift", () => {
 
   test("bufferPendingDrift / consumeBufferedDrift: 버퍼는 한 번만 consume", () => {
     const { bufferPendingDrift, consumeBufferedDrift } = serverMod
-    const markers = [{ nonce: "a", stack: "news", command: "compose ps" }]
+    // PendingMarkerFields 전체 필드 (production code 영향 없는 fixture 보강)
+    const markers = [
+      {
+        nonce: "a",
+        stack: "news",
+        command: "compose ps",
+        service: "news-prod-app",
+        docker_started_at: null,
+        docker_finished_at: null,
+        exit_code: null,
+      },
+    ]
     bufferPendingDrift(markers)
     const first = consumeBufferedDrift()
     expect(first.length).toBe(1)
