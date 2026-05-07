@@ -1,4 +1,4 @@
-// src/server.test.ts — Hono app 라우트 sanity tests (Plan 01-07).
+// src/server.test.ts — Hono app 라우트 sanity tests (Plan 01-07 + 02-08).
 //
 // 전략: server.ts를 import하면 module-level loadEnv()가 즉시 실행된다.
 // 따라서 import 전에 Bun.env에 테스트 키를 set한다. ESM은 top-level await을 module
@@ -8,8 +8,12 @@
 // staleCheck() / queryTopK()는 docker / voyageai 실호출이 가능하므로 SSE 핸들러를
 // 끝까지 driver하지 않는다 — 라우트 존재 + status code + Content-Type만 확인.
 // (라이브 검증은 Plan 01-09 verification에서.)
+//
+// Plan 02-08 추가: POST /approval/:id 5-key route + recoverPendingMarkers boot probe.
 
-import { describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 
 // import 전 Bun.env 주입 — server.ts module-level loadEnv() 통과용.
 // FRICTION #8 분기를 피하려면 빈 문자열 아닌 값으로 명시적 set 필요
@@ -24,6 +28,10 @@ Bun.env.KB_DB_PATH = ":memory:"
 const serverMod = await import("./server")
 const { app } = serverMod
 const serveDefault = serverMod.default
+
+// approval store 직접 import (test isolation을 위해 _resetForTest 사용)
+const approvalStoreMod = await import("../approval/store")
+const { setPending, _resetForTest: resetApprovalStore } = approvalStoreMod
 
 describe("server.ts (Plan 01-07)", () => {
   test("app은 Hono instance — fetch 메서드 존재", () => {
@@ -153,6 +161,263 @@ describe("F-2 회귀 — pendingWrites flush 패턴 (server.ts SSE wrapper 핵�
 
     await Promise.allSettled(pendingWrites)
     expect(writeOrder).toEqual(["a", "c"])
+  })
+})
+
+// ===== Plan 02-08: POST /approval/:id 5-key route =====
+//
+// PLAN.md:
+//   body: form-urlencoded { key: 'y'|'n'|'e'|'d'|'a', newContent? }
+//   nonce: URL path param (`:id`)
+//   sessionId: x-session-id header (default 'default')
+//
+// mapKey:
+//   y → {type:'approved'}
+//   n → {type:'rejected'}
+//   e → {type:'edited', newContent} (newContent 없으면 invalid → 400)
+//   d → ui-only (consumeApproval 미호출, 200 OK)
+//   a → {type:'aborted'}
+//   else → invalid → 400
+//
+// 응답:
+//   200 OK on 정상 + ui-only
+//   400 invalid key / parse error
+//   409 nonce mismatch / consumed / expired (consumeApproval throw)
+describe("Plan 02-08: POST /approval/:id (5-key approval route)", () => {
+  beforeEach(() => {
+    resetApprovalStore()
+  })
+
+  afterEach(() => {
+    resetApprovalStore()
+  })
+
+  // 공통 fixture — pending 등록을 위한 minimal payload
+  function basePending(nonce: string) {
+    return {
+      nonce,
+      diff: "",
+      stack: "news" as const,
+      command: "compose ps" as const,
+      service: "",
+      reasoning: "test",
+      user_prompt: "test",
+      expiresAt: Date.now() + 120_000,
+    }
+  }
+
+  function postApproval(
+    nonce: string,
+    formFields: Record<string, string>,
+    sessionId = "default",
+  ) {
+    const body = new URLSearchParams(formFields).toString()
+    return app.fetch(
+      new Request(`http://localhost/approval/${nonce}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "x-session-id": sessionId,
+        },
+        body,
+      }),
+    )
+  }
+
+  test("key='y' → 200 + decision 'approved' resolve", async () => {
+    const decisionPromise = setPending("default", basePending("n1"))
+    const res = await postApproval("n1", { key: "y" })
+    expect(res.status).toBe(200)
+    await expect(decisionPromise).resolves.toEqual({ type: "approved" })
+  })
+
+  test("key='n' → 200 + decision 'rejected'", async () => {
+    const decisionPromise = setPending("default", basePending("n2"))
+    const res = await postApproval("n2", { key: "n" })
+    expect(res.status).toBe(200)
+    await expect(decisionPromise).resolves.toEqual({ type: "rejected" })
+  })
+
+  test("key='e' + newContent → 200 + decision 'edited'", async () => {
+    const decisionPromise = setPending("default", basePending("n3"))
+    const res = await postApproval("n3", {
+      key: "e",
+      newContent: "version: '3'\nservices: {}\n",
+    })
+    expect(res.status).toBe(200)
+    await expect(decisionPromise).resolves.toEqual({
+      type: "edited",
+      newContent: "version: '3'\nservices: {}\n",
+    })
+  })
+
+  test("key='e' + no newContent → 400 invalid key envelope", async () => {
+    setPending("default", basePending("n4"))
+    const res = await postApproval("n4", { key: "e" })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { problem: string; retryable: boolean }
+    expect(body.problem).toContain("invalid")
+    expect(body.retryable).toBe(false)
+  })
+
+  test("key='d' → 200 + ui-only flag (consumeApproval 미호출)", async () => {
+    // pending 그대로 살아있어야 함 — d는 토글만
+    const decisionPromise = setPending("default", basePending("n5"))
+    const res = await postApproval("n5", { key: "d" })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; ui_only: boolean }
+    expect(body.ok).toBe(true)
+    expect(body.ui_only).toBe(true)
+    // pending이 그대로 살아있는지 — consumeApproval 미호출 검증.
+    // 이후 'a'로 abort하여 promise 매듭 (test cleanup).
+    const abortRes = await postApproval("n5", { key: "a" })
+    expect(abortRes.status).toBe(200)
+    await expect(decisionPromise).resolves.toEqual({ type: "aborted" })
+  })
+
+  test("key='a' → 200 + decision 'aborted'", async () => {
+    const decisionPromise = setPending("default", basePending("n6"))
+    const res = await postApproval("n6", { key: "a" })
+    expect(res.status).toBe(200)
+    await expect(decisionPromise).resolves.toEqual({ type: "aborted" })
+  })
+
+  test("key='z' (invalid) → 400 envelope", async () => {
+    setPending("default", basePending("n7"))
+    const res = await postApproval("n7", { key: "z" })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as {
+      problem: string
+      cause: string
+      fix: string
+      retryable: boolean
+    }
+    expect(body.problem).toContain("invalid")
+    expect(body.cause).toContain("z")
+    expect(body.retryable).toBe(false)
+  })
+
+  test("nonce mismatch → 409 envelope (PITFALL #3 prevention)", async () => {
+    setPending("default", basePending("real-nonce"))
+    const res = await postApproval("wrong-nonce", { key: "y" })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as {
+      problem: string
+      cause: string
+      fix: string
+      retryable: boolean
+    }
+    expect(body.problem.toLowerCase()).toContain("nonce")
+    expect(body.retryable).toBe(false)
+  })
+})
+
+// ===== Plan 02-08: recoverPendingMarkers + buffered drift =====
+//
+// D-C2 boot probe — state/.pending/*.json scan, 발견 시 console.warn + buffer
+// (자동 복구 안 함). 첫 /chat-stream 진입 시 buffered drift event SSE emit.
+//
+// reader는 permissive parse — Wave 1/2 (02-04 commit, 02-06 applyPatch)가
+// PendingMarker 추가 필드(fileEdit/reasoning/sha_before 등)를 작성하므로
+// 정확한 schema 매칭 강제 안 함.
+describe("Plan 02-08: recoverPendingMarkers + buffered drift", () => {
+  // tests/fixtures/pending-test/ 임시 디렉토리에서 격리 실행
+  // 실제 state/.pending과 충돌 회피 — testRoot로 분리.
+  const testRoot = join(import.meta.dir, "..", "tests", "fixtures", "pending-test")
+  const testPendingDir = join(testRoot, ".pending")
+
+  beforeEach(() => {
+    if (existsSync(testRoot)) {
+      rmSync(testRoot, { recursive: true, force: true })
+    }
+    mkdirSync(testPendingDir, { recursive: true })
+  })
+
+  afterEach(() => {
+    if (existsSync(testRoot)) {
+      rmSync(testRoot, { recursive: true, force: true })
+    }
+  })
+
+  test("recoverPendingMarkers: 디렉토리 비어있으면 빈 배열", async () => {
+    const { recoverPendingMarkers } = serverMod
+    const result = await recoverPendingMarkers(testPendingDir)
+    expect(Array.isArray(result)).toBe(true)
+    expect(result.length).toBe(0)
+  })
+
+  test("recoverPendingMarkers: 존재하지 않는 디렉토리도 빈 배열 (mkdir 안 함)", async () => {
+    const { recoverPendingMarkers } = serverMod
+    const noSuchDir = join(testRoot, "absolutely-not-exist")
+    const result = await recoverPendingMarkers(noSuchDir)
+    expect(result).toEqual([])
+    expect(existsSync(noSuchDir)).toBe(false)
+  })
+
+  test("recoverPendingMarkers: 2개 marker → 2개 반환 + 추가 필드는 permissive (passthrough)", async () => {
+    // Wave 1/2 writers (02-04/02-06)가 작성하는 실제 marker shape — 추가 필드 포함
+    const m1 = {
+      nonce: "uuid-1",
+      stack: "news",
+      command: "compose restart",
+      service: "news",
+      reasoning: "image bump",
+      user_prompt: "news 재시작",
+      sha_before: "abc1234",
+      ts_created: "2026-05-08T10:00:00+09:00",
+      docker_started_at: "2026-05-08T10:00:01+09:00",
+      docker_finished_at: null,
+      exit_code: null,
+      // permissive 필드:
+      fileEdit: { path: "state/compose/news.yml", newContent: "x", previousContent: "y" },
+    }
+    const m2 = {
+      nonce: "uuid-2",
+      stack: "krdn-fx",
+      command: "compose down",
+      service: "dashboard",
+      reasoning: "stop fx",
+      user_prompt: "fx 중지",
+      sha_before: "def5678",
+      ts_created: "2026-05-08T10:01:00+09:00",
+      docker_started_at: "2026-05-08T10:01:01+09:00",
+      docker_finished_at: "2026-05-08T10:01:02+09:00",
+      exit_code: 0,
+    }
+    writeFileSync(join(testPendingDir, "uuid-1.json"), JSON.stringify(m1, null, 2))
+    writeFileSync(join(testPendingDir, "uuid-2.json"), JSON.stringify(m2, null, 2))
+
+    const { recoverPendingMarkers } = serverMod
+    const result = await recoverPendingMarkers(testPendingDir)
+    expect(result.length).toBe(2)
+    const nonces = result.map((m: { nonce: string }) => m.nonce).sort()
+    expect(nonces).toEqual(["uuid-1", "uuid-2"])
+    // permissive parse 검증 — 추가 필드도 보존되어야 함
+    const m1Found = result.find(
+      (m: { nonce: string }) => m.nonce === "uuid-1",
+    ) as { fileEdit?: unknown }
+    expect(m1Found.fileEdit).toBeDefined()
+  })
+
+  test("recoverPendingMarkers: 손상 JSON 파일은 swallow (operator manual)", async () => {
+    writeFileSync(join(testPendingDir, "good.json"), JSON.stringify({ nonce: "good" }))
+    writeFileSync(join(testPendingDir, "broken.json"), "{ not valid json")
+
+    const { recoverPendingMarkers } = serverMod
+    const result = await recoverPendingMarkers(testPendingDir)
+    // 손상 파일은 무시되고 정상 1개만 반환
+    expect(result.length).toBe(1)
+    expect((result[0] as { nonce: string }).nonce).toBe("good")
+  })
+
+  test("bufferPendingDrift / consumeBufferedDrift: 버퍼는 한 번만 consume", () => {
+    const { bufferPendingDrift, consumeBufferedDrift } = serverMod
+    const markers = [{ nonce: "a", stack: "news", command: "compose ps" }]
+    bufferPendingDrift(markers)
+    const first = consumeBufferedDrift()
+    expect(first.length).toBe(1)
+    const second = consumeBufferedDrift()
+    expect(second.length).toBe(0)
   })
 })
 

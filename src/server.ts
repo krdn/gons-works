@@ -1,29 +1,43 @@
-// src/server.ts — Phase 1 Hono entrypoint.
+// src/server.ts — Phase 1+2 Hono entrypoint.
 //
 // Responsibilities:
 //   - POST /chat: htmx 폼 수신 → SSE 연결을 트리거할 wrapper HTML 반환
-//   - GET /chat-stream: streamSSE handler — 4 startup probe 후 KB-03 drift + RAG + iterate() pump
+//   - GET /chat-stream: streamSSE handler — 5 startup probe 후 KB-03 drift +
+//                        buffered marker drift + RAG + iterate() pump
 //   - GET /static/:file: 화이트리스트 정적 파일 (htmx + sse extension)
 //   - GET /: public/index.html serve
+//   - POST /approval/:id: 5-key 승인 게이트 (Plan 02-08, APPLY-03)
 //
-// 4 startup probes (실행 시 module main):
+// 5 startup probes (실행 시 module main):
 //   1) loadEnv() — module 진입점. FRICTION #8 친절 에러 → exit(1)
 //   2) ensureDockerContext() — BOOT-04. context inspect 실패 → exit(1)
 //   3) ensureIndexed() — KB lazy hash. failure → exit(1)
 //   4) staleCheck() — boot 시 1회. console.warn만, exit 안 함
+//   5) recoverPendingMarkers() — Plan 02-08, APPLY-05/D-C2. state/.pending/*.json
+//                                 발견 시 console.warn + buffer (자동 복구 안 함).
+//                                 첫 /chat-stream 진입 시 SSE drift event로 운영자 안내.
 //
 // Pitfalls handled:
 //   #4 AbortError — streamSSE catch + onError 양쪽에서 명시 분기
 //   #16 0.0.0.0 bind — hostname: "127.0.0.1" lock (acceptance grep)
+//   #3 PITFALL — POST /approval/:id가 nonce mismatch / consumed / expired를
+//                409 envelope으로 매핑 (approval/store.ts consumeApproval throw).
 //
 // LOOP-06 (60s SSE chunk timeout / D-15.3):
 //   createChunkWatchdog(emit) → emit()마다 reset, final/error마다 cancel,
 //   timeout 발화 시 watchdog이 envelope을 onTimeout으로 넘기고 AbortSignal abort,
 //   iterate(opts.abortSignal)이 signal 받아 break.
+//
+// APPLY-08 / D-10 lock (Plan 02-08 Task 3):
+//   Phase 2 흐름 LLM 모델 = COPILOT_MODEL_PROPOSE (env default = opus-4-6, src/env.ts).
+//   실제 messages.create 호출은 agent/loop.ts:124,136이 owns — 그곳에서 PROPOSE로 전환.
+//   여기서는 env eval 1회 + 주석으로 lock 포인트 명시 (acceptance grep + 의도 표명).
 
 import { Hono } from "hono"
 import { streamSSE } from "hono/streaming"
 import { existsSync, readFileSync } from "node:fs"
+import { readdir, readFile } from "node:fs/promises"
+import { join } from "node:path"
 import { loadEnv } from "./env"
 import { ensureDockerContext } from "./docker-context-check"
 import { ensureIndexed, queryTopK } from "../kb/index"
@@ -35,8 +49,18 @@ import {
   type SseEvent,
 } from "../agent/sse"
 import { formatRagContext } from "../agent/system-prompt"
+import { consumeApproval, type ApprovalDecision } from "../approval/store"
 
 const env = loadEnv()
+
+// APPLY-08 / D-10 lock — Phase 2 흐름 LLM 모델 = COPILOT_MODEL_PROPOSE (env default opus-4-6).
+// 실제 messages.create 호출 site: agent/loop.ts:124, 136 (READONLY → PROPOSE 전환됨).
+// 여기 evaluation은 (a) env에 키가 없으면 boot 즉시 실패 (b) acceptance grep용 lock 포인트.
+const PHASE2_LLM_MODEL: string = env.COPILOT_MODEL_PROPOSE
+// 사용처: server.ts는 LLM 직접 호출 안 함 — agent/loop.ts에 위임.
+// 향후 dynamic swap(read-only turn에 SONNET fallback)이 필요해지면 이 상수를 통해 주입.
+void PHASE2_LLM_MODEL
+
 const app = new Hono()
 
 // ===== Static file serving (htmx + sse extension 화이트리스트) =====
@@ -76,6 +100,214 @@ app.get("/", (c) => {
   }
   const html = readFileSync(indexPath, "utf-8")
   return c.html(html)
+})
+
+// ===== Plan 02-08: Pending marker boot recovery (D-C2, APPLY-05) =====
+//
+// state/.pending/*.json 파일은 02-06 applyPatch가 docker exec 직전에 작성하고
+// git commit 완료 시 삭제. server crash가 (b)~(d) 사이에서 발생하면 marker가
+// 남는다. boot 시 발견하면 자동 복구하지 않고(D-C2 lock — audit lie 위험),
+// 운영자에게 SSE drift event로 a)/b)/c) 명령을 안내한다.
+//
+// permissive parse 정책 — Wave 1/2 (02-04 commit, 02-06 applyPatch)가
+// fileEdit/reasoning/sha_before 등 추가 필드를 작성. reader인 본 plan은
+// schema validation 안 함 (Record-style). Wave writer 변경 시에도 안전.
+
+// 본 reader가 의존하는 minimum field — 그 외는 passthrough로 보존.
+export interface PendingMarkerFields {
+  nonce: string
+  stack: string
+  command: string
+  service: string
+  docker_started_at: string | null
+  docker_finished_at: string | null
+  exit_code: number | null
+  // 추가 필드(fileEdit, reasoning, user_prompt, sha_before, ts_created 등)는
+  // passthrough — Record<string, unknown>로 합쳐 보존한다.
+  [key: string]: unknown
+}
+
+const DEFAULT_PENDING_DIR = "state/.pending"
+
+let pendingDriftBuffer: PendingMarkerFields[] = []
+
+/**
+ * state/.pending/*.json scan + permissive parse.
+ *
+ * @param dir 기본 'state/.pending' — 테스트는 격리된 디렉토리 주입.
+ * @returns 파일별 marker 객체 배열. 디렉토리 없거나 비어있으면 빈 배열.
+ *          손상 JSON은 swallow (로그만).
+ */
+export async function recoverPendingMarkers(
+  dir: string = DEFAULT_PENDING_DIR,
+): Promise<PendingMarkerFields[]> {
+  if (!existsSync(dir)) return []
+  const files = (await readdir(dir)).filter((f) => f.endsWith(".json"))
+  if (files.length === 0) return []
+  const markers: PendingMarkerFields[] = []
+  for (const f of files) {
+    try {
+      const content = await readFile(join(dir, f), "utf-8")
+      const parsed = JSON.parse(content) as PendingMarkerFields
+      markers.push(parsed)
+    } catch (e) {
+      // 손상 marker는 swallow — 운영자가 manual로 처리.
+      console.warn(
+        `[APPLY-05] marker 파싱 실패 ${f} (skip, manual cleanup 필요): ${(e as Error).message}`,
+      )
+    }
+  }
+  return markers
+}
+
+/** 첫 /chat-stream 진입 시까지 marker를 버퍼링. */
+export function bufferPendingDrift(markers: PendingMarkerFields[]): void {
+  pendingDriftBuffer = [...markers]
+}
+
+/** 첫 /chat-stream 진입 시 한 번만 consume — 두 번째는 빈 배열. */
+export function consumeBufferedDrift(): PendingMarkerFields[] {
+  const out = pendingDriftBuffer
+  pendingDriftBuffer = []
+  return out
+}
+
+/**
+ * 3-state 분류 (D-C3) — boot drift 메시지 build.
+ *
+ * state 0: docker_started_at == null → docker 시작 전 crash (안전)
+ * state 1: docker_started_at != null && docker_finished_at == null → 진행 중 (불확실)
+ * state 2: docker_finished_at != null && exit_code != null → docker 완료 + git uncommitted
+ */
+function classifyMarker(m: PendingMarkerFields): "pre-docker" | "in-flight" | "post-docker" {
+  if (m.docker_started_at == null) return "pre-docker"
+  if (m.docker_finished_at == null) return "in-flight"
+  return "post-docker"
+}
+
+/** 운영자 안내 메시지 — D-C2 a)/b)/c) 옵션 명시. */
+function formatMarkerForDrift(m: PendingMarkerFields): string {
+  const state = classifyMarker(m)
+  const reverse: Record<string, string> = {
+    "compose up -d": "compose down",
+    "compose down": "compose up -d",
+    "compose start": "compose stop",
+    "compose stop": "compose start",
+    "compose restart": "compose restart",
+  }
+  const reverseCmd = reverse[m.command] ?? m.command
+  return [
+    `⚠ unfinished applyPatch [${state}]: nonce=${m.nonce} stack=${m.stack} cmd=${m.command} service=${m.service}`,
+    `  docker_started_at=${m.docker_started_at ?? "null"} docker_finished_at=${m.docker_finished_at ?? "null"} exit_code=${m.exit_code ?? "null"}`,
+    `  복구 옵션 (1 선택):`,
+    `   a) 수동 git commit: cd state && git add -A && git commit -F /tmp/manual-msg-${m.nonce}.txt`,
+    `   b) 수동 docker rollback: ssh gon@192.168.0.5 'cd /원격경로/${m.stack} && docker compose ${reverseCmd} ${m.service}'`,
+    `   c) marker 삭제 (production 그대로): rm state/.pending/${m.nonce}.json`,
+  ].join("\n")
+}
+
+// ===== POST /approval/:id — 5-key 승인 게이트 (Plan 02-08, APPLY-03) =====
+//
+// PLAN.md schema:
+//   path:    /approval/:id   (id = nonce)
+//   header:  x-session-id (없으면 'default' fallback — Phase 1 carry-forward)
+//   body:    form-urlencoded { key: 'y'|'n'|'e'|'d'|'a', newContent? }
+//
+// mapKey:
+//   y → {type:'approved'}
+//   n → {type:'rejected'}
+//   e → {type:'edited', newContent} (newContent 없으면 invalid → 400)
+//   d → 'ui-only' (consumeApproval 미호출, 200 OK + ui_only:true)
+//   a → {type:'aborted'}
+//   else → null → 400 invalid envelope
+//
+// 응답:
+//   200 OK on 정상 + ui-only
+//   400 invalid key / parse error
+//   409 nonce mismatch / consumed / expired (consumeApproval throw)
+//
+// 보안 메모 (단일 사용자 도구):
+//   - rate limit / CSRF 미적용 — PROJECT.md "Out of Scope: multi-user".
+//   - 127.0.0.1 bind만 (PITFALL #16) — LAN/외부 노출 금지.
+//   - x-session-id 헤더는 형식적 분리, 1인 도구이므로 보통 'default' 단일 세션.
+
+type MappedKey = ApprovalDecision | "ui-only"
+
+function mapKey(key: string, newContent?: string): MappedKey | null {
+  switch (key) {
+    case "y":
+      return { type: "approved" }
+    case "n":
+      return { type: "rejected" }
+    case "e":
+      // newContent 누락 시 invalid (400) — PLAN.md interfaces 명시.
+      return newContent ? { type: "edited", newContent } : null
+    case "d":
+      // UI-only 토글 (diff 표시) — consumeApproval 호출 안 함.
+      return "ui-only"
+    case "a":
+      return { type: "aborted" }
+    default:
+      return null
+  }
+}
+
+app.post("/approval/:id", async (c) => {
+  const nonce = c.req.param("id")
+  const sessionId = c.req.header("x-session-id") ?? "default"
+
+  let body: Record<string, string | File>
+  try {
+    body = await c.req.parseBody()
+  } catch {
+    return c.json(
+      {
+        problem: "invalid body",
+        cause: "form-urlencoded 파싱 실패",
+        fix: "Content-Type: application/x-www-form-urlencoded로 재전송",
+        retryable: false,
+      },
+      400,
+    )
+  }
+
+  const key = typeof body.key === "string" ? body.key : ""
+  const newContent =
+    typeof body.newContent === "string" ? body.newContent : undefined
+
+  const mapped = mapKey(key, newContent)
+  if (mapped === null) {
+    return c.json(
+      {
+        problem: "invalid key",
+        cause: `key='${key}' (또는 'e'에 newContent 누락)`,
+        fix: "y/n/e/d/a 중 하나 선택, 'e'면 newContent textarea 동봉",
+        retryable: false,
+      },
+      400,
+    )
+  }
+  if (mapped === "ui-only") {
+    // 'd' (show diff) — UI 토글, 서버 상태 변화 없음.
+    return c.json({ ok: true, ui_only: true })
+  }
+
+  try {
+    consumeApproval(sessionId, nonce, mapped)
+    return c.json({ ok: true })
+  } catch (err) {
+    // PITFALL #3: nonce mismatch / consumed / expired → 409 envelope.
+    const msg = (err as Error).message
+    return c.json(
+      {
+        problem: msg,
+        cause: "approval store invariant violation",
+        fix: "diff를 다시 읽고 새 NL 입력으로 재제안",
+        retryable: false,
+      },
+      409,
+    )
+  }
 })
 
 // ===== POST /chat — htmx 폼 submit endpoint =====
@@ -135,6 +367,22 @@ app.get("/chat-stream", (c) => {
       }
 
       try {
+        // Plan 02-08: buffered marker drift — boot probe 5에서 발견된 unfinished
+        // applyPatch markers를 첫 /chat-stream 진입 시 1회 emit (D-C2).
+        // services.yaml drift와 별개의 SSE drift event로 보낸다 (UI 측에서 amber 배너 누적).
+        const buffered = consumeBufferedDrift()
+        if (buffered.length > 0) {
+          const message = buffered
+            .map((m) => formatMarkerForDrift(m))
+            .join("\n\n")
+          emit({
+            type: "drift",
+            message,
+            unknown: [],
+            stale: [],
+          })
+        }
+
         // UI-04 / D-13.4: per-query staleness check (kb/stale-check.ts 30s TTL cache)
         const report: StalenessReport = await staleCheck(env)
         if (report.unknown.length > 0 || report.stale.length > 0) {
@@ -227,6 +475,26 @@ async function startup(): Promise<void> {
     }
   } catch (err) {
     console.warn(`[KB-03] staleCheck 실패 (서버 시작 계속): ${(err as Error).message}`)
+  }
+  // probe 5 (Plan 02-08, APPLY-05/D-C2): pending markers boot detect.
+  // 자동 복구 안 함 — console.warn + bufferPendingDrift, 첫 /chat-stream 진입 시 SSE drift event.
+  try {
+    const markers = await recoverPendingMarkers()
+    if (markers.length > 0) {
+      console.warn(
+        `[APPLY-05] ${markers.length}개의 unfinished applyPatch marker 발견 — 첫 /chat-stream 연결 시 drift event 발화`,
+      )
+      for (const m of markers) {
+        console.warn(
+          `  - nonce=${m.nonce} stack=${m.stack} command=${m.command} docker_started_at=${m.docker_started_at} exit_code=${m.exit_code}`,
+        )
+      }
+      bufferPendingDrift(markers)
+    }
+  } catch (err) {
+    console.warn(
+      `[APPLY-05] recoverPendingMarkers 실패 (서버 시작 계속): ${(err as Error).message}`,
+    )
   }
 }
 

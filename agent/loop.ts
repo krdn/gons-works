@@ -20,7 +20,10 @@
 //   LOOP-06  abortSignal opt — server.ts의 createChunkWatchdog().signal 전달 받아 break
 //   LOOP-07  inFlight Map<sessionId+queryHash, AbortController> dedup (PITFALL #4)
 //   D-09     cli-proxy-api primary (env.ANTHROPIC_BASE_URL)
-//   D-10     COPILOT_MODEL_READONLY (claude-sonnet-4-6)
+//   D-10     COPILOT_MODEL_PROPOSE (claude-opus-4-6) — Phase 2부터 적용 (APPLY-08).
+//            Phase 1은 READONLY(sonnet-4-6) 사용했으나 Phase 2 propose tool이 등장하면서
+//            모든 turn이 propose 가능성 있어 일괄 PROPOSE 승격 (Plan 02-08 Task 3).
+//            비용 영향: opus 호출 비용 ~ sonnet의 5배. dynamic swap은 v2 deferred.
 //   D-11     hasFallback(env) → callWithFallback로 console.anthropic.com 재시도
 //   D-15.4   tool_result content = JSON.stringify(envelope) (success도 동일 shape)
 //
@@ -120,7 +123,8 @@ async function callWithFallback(args: CreateArgs): Promise<Anthropic.Message> {
   const primary = buildClient(args.env, false)
   try {
     return await primary.messages.create({
-      model: args.env.COPILOT_MODEL_READONLY,
+      // APPLY-08 / D-10 (Plan 02-08 Task 3): Phase 2부터 PROPOSE(opus-4-6) 일괄 사용.
+      model: args.env.COPILOT_MODEL_PROPOSE,
       max_tokens: 4096,
       system: args.systemPrompt,
       messages: args.messages,
@@ -131,7 +135,8 @@ async function callWithFallback(args: CreateArgs): Promise<Anthropic.Message> {
     const fallback = buildClient(args.env, true)
     try {
       return await fallback.messages.create({
-        model: args.env.COPILOT_MODEL_READONLY,
+        // APPLY-08 / D-10: fallback 경로도 PROPOSE 사용.
+        model: args.env.COPILOT_MODEL_PROPOSE,
         max_tokens: 4096,
         system: args.systemPrompt,
         messages: args.messages,
@@ -296,7 +301,8 @@ export async function iterate(prompt: string, opts: IterateOpts): Promise<void> 
     else externalSignal.addEventListener("abort", () => ac.abort(), { once: true })
   }
 
-  const turnId = beginTurn(prompt, env.COPILOT_MODEL_READONLY)
+  // APPLY-08 / D-10 (Plan 02-08): audit 로그 model 식별자도 PROPOSE로 통일.
+  const turnId = beginTurn(prompt, env.COPILOT_MODEL_PROPOSE)
   const startedAt = Date.now()
   let toolIterations = 0
   let totalToolCalls = 0
