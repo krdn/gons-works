@@ -1,0 +1,247 @@
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: web
+    container_name: ais-prod-web
+    restart: unless-stopped
+    ports:
+      - "3300:3000"
+    env_file:
+      - ../.env.production
+    volumes:
+      # Gemini CLI OAuth 인증 — Playground(tRPC)에서 사용
+      - ${HOME}/.gemini:/root/.gemini
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ais-prod-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+    container_name: ais-prod-worker
+    restart: unless-stopped
+    stop_grace_period: 60s
+    env_file:
+      - ../.env.production
+    volumes:
+      # Gemini CLI OAuth 인증 — 호스트 ~/.gemini를 컨테이너에 바인드 마운트
+      - ${HOME}/.gemini:/root/.gemini
+      # HuggingFace/Xenova 모델 캐시 영속화 — 컨테이너 재시작 시 재다운로드 방지
+      - ais-prod-model-cache:/root/.cache/xenova
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"process.exit(0)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ais-prod-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ais-prod-postgres
+    restart: unless-stopped
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_DB: ai_signalcraft
+      POSTGRES_USER: ${POSTGRES_USER:-ais}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ais-prod-pgdata:/var/lib/postgresql/data
+    networks:
+      - ais-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ais}"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  redis:
+    image: redis:7
+    container_name: ais-prod-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 1gb --maxmemory-policy noeviction --appendonly yes
+    ports:
+      - "6385:6379"
+    volumes:
+      - ais-prod-redis:/data
+    networks:
+      - ais-prod-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── 수집 시스템 (P1~P6) ──────────────────────────────────────────
+  # 독립 서비스 — 자체 TimescaleDB 사용, 기존 ais-prod-redis와는 prefix로 분리.
+  # DB는 krdn-timescaledb(5435)의 ais_collection. 외부에서 접근하므로 host.docker.internal 사용.
+  collector-api:
+    build:
+      context: ..
+      dockerfile: apps/collector/Dockerfile
+    container_name: ais-collector-api
+    command: ["tsx", "apps/collector/src/server/index.ts"]
+    restart: unless-stopped
+    ports:
+      # 호스트 3400은 ai-insight-api가 선점 → 3401로 매핑. 컨테이너 내부는 3400 유지 (내부 DNS: http://collector-api:3400)
+      - "3401:3400"
+    env_file:
+      - ../.env.production
+    environment:
+      NODE_ENV: production
+      PORT: "3400"
+      DATABASE_URL: ${COLLECTOR_DATABASE_URL}
+      REDIS_URL: ${COLLECTOR_REDIS_URL:-redis://redis:6379}
+      COLLECTOR_API_KEY: ${COLLECTOR_API_KEY}
+      BULL_PREFIX: collector
+      MANUAL_TRIGGER_COOLDOWN_SEC: "600"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ais-prod-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  collector-worker:
+    build:
+      context: ..
+      dockerfile: apps/collector/Dockerfile
+    container_name: ais-collector-worker
+    command: ["tsx", "apps/collector/src/queue/worker-process.ts"]
+    restart: unless-stopped
+    stop_grace_period: 60s
+    env_file:
+      - ../.env.production
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${COLLECTOR_DATABASE_URL}
+      REDIS_URL: ${COLLECTOR_REDIS_URL:-redis://redis:6379}
+      BULL_PREFIX: collector
+    volumes:
+      - ais-collector-model-cache:/root/.cache/xenova
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"process.exit(0)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ais-prod-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  collector-scheduler:
+    build:
+      context: ..
+      dockerfile: apps/collector/Dockerfile
+    container_name: ais-collector-scheduler
+    command: ["tsx", "apps/collector/src/scheduler/scanner.ts"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    env_file:
+      - ../.env.production
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${COLLECTOR_DATABASE_URL}
+      REDIS_URL: ${COLLECTOR_REDIS_URL:-redis://redis:6379}
+      BULL_PREFIX: collector
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ais-prod-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Whisper 전사 워커 — YouTube 자막 엔드포인트가 PO token 보호로 막힌 이후
+  # yt-dlp로 오디오 다운로드 + faster-whisper로 전사해 transcript를 채움.
+  # 키워드 구독 collector(BULL_PREFIX=collector)가 enqueue한 작업을 소비하므로
+  # 동일 prefix를 사용해야 한다 (Redis는 ais-prod-redis 공유).
+  # COLLECTOR_DATABASE_URL은 신규 raw_items 경로가 .env.production에서 상속.
+  whisper-worker:
+    build:
+      context: ..
+      dockerfile: apps/whisper-worker/Dockerfile
+    container_name: ais-whisper-worker
+    restart: unless-stopped
+    stop_grace_period: 60s
+    env_file:
+      - ../.env.production
+    environment:
+      NODE_ENV: production
+      BULL_PREFIX: collector
+      # Whisper 모델 / 동시성 — 운영 부하에 맞게 조정 가능
+      WHISPER_MODEL: small
+      WHISPER_LANGUAGE: ko
+      WHISPER_THREADS: "8"
+      WHISPER_CONCURRENCY: "1"
+    volumes:
+      # HuggingFace 모델 캐시 영속화 — 컨테이너 재시작 시 재다운로드 방지
+      - ais-whisper-hf-cache:/root/.cache/huggingface
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ais-prod-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ais-prod-pgdata:
+  ais-prod-redis:
+  ais-prod-model-cache:
+  ais-collector-model-cache:
+  ais-whisper-hf-cache:
+
+networks:
+  ais-prod-network:
+    driver: bridge

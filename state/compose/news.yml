@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Base configuration for Celery Worker
+  worker:
+    build: .
+    command: celery -A src.worker.celery_app worker -Q celery,twitter,instagram --loglevel=info --concurrency=3 --max-memory-per-child=500000
+    volumes:
+      - .:/app
+    restart: always
+
+  # Base configuration for Celery Beat
+  beat:
+    build: .
+    command: celery -A src.worker.celery_app beat --loglevel=info
+    volumes:
+      - .:/app
+    restart: always
+
+  # Base configuration for FastAPI
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: news-analyzer-api
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+    volumes:
+      - .:/app
+    restart: always
+
+  # Base configuration for Next.js Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: news-analyzer-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    restart: always
+
+  # Base configuration for Redis (Shared definition)
+  redis:
+    image: redis:alpine
+    container_name: news-redis
+    restart: always
+
+volumes:
+  pgdata:
