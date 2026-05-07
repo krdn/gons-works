@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 2 — Propose/Apply with Approval Gate (Wave 1 완료, Wave 2 시작 — 02-05 → 02-06 sequential)
+**Current focus:** Phase 2 — Propose/Apply with Approval Gate (Wave 1+2 완료, Wave 3 시작 — 02-07/08/09 병렬)
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 2 시작 (02-05 dispatch 예정)
-Plan: 4 of 10 PASS (D-E1, 02-02, 02-03, 02-04) / 6 plans pending (02-05..02-10)
-Status: Wave 1 모두 완료 — 02-02 approval/store(14 PASS), 02-03 state/commit + APPLY-07 hook(17 PASS), 02-04 4-stack mirror + docker-context test(3+3 PASS). 총 34/34 PASS. 192/196 PASS overall (4 skip). PROD 깨끗(test container/network 0개). plan hotfix 2건(D-04 lock + Option A 4-stack scope) + FRICTION F-3/F-4 lock-in.
-Last activity: 2026-05-07 — Wave 1 완료 후 02-06 PLAN에 PROD safety belt-and-suspenders carry-forward 명시 추가. Wave 2 (02-05 proposePatch + system-prompt → 02-06 applyPatch 2PC) sequential dispatch 진행.
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 3 시작 (02-07/08/09 병렬 dispatch)
+Plan: 6 of 10 PASS (D-E1, 02-02, 02-03, 02-04, 02-05, 02-06) / 4 plans pending (02-07..02-10)
+Status: Wave 2 완료 — 02-05 proposePatch + system-prompt Phase 2(16 PASS, 5 commits, advisor sign-off), 02-06 applyPatch 2PC orchestrator + APPLY_TEST_MODE seam + D-B3 reverse mapping(16 PASS, 6 commits, 55분 ≪ 90 예산). 226/230 전체 PASS (4 skip). PROD 깨끗 재확인. 02-04에서 발견한 PROD safety incident 02-06에 belt-and-suspenders로 lock(--context default explicit positional + DOCKER_CONTEXT env 둘 다).
+Last activity: 2026-05-07 — Wave 2 완료. Wave 3 (02-07 sse+loop interrupt+resume / 02-08 server.ts approval route + recoverPendingMarkers / 02-09 public/index.html 5-key form) 3개 plan 병렬 dispatch 진행.
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
