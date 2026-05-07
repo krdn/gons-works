@@ -454,3 +454,7 @@ coverage/
 
 # data/ (D-14.2): bun:sqlite copilot.db — binary, not git-tracked
 /data/
+
+# tmp/ — diagnostic spikes, scratch scripts (plan 단위로 정리)
+/tmp/
+
