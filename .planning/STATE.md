@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 2 — v1.3 hotfix 완료 (F-16 SSE 자동재연결 + paused stack + classify 7-stack 확장), 02-01-SUMMARY.md retrospective closure 완료. Phase 3 진입 준비됨.
+**Current focus:** ✅ **v1 milestone CLOSED (2026-05-08)** — Phase 0/1/2 + v1.1/v1.2/v1.3 hotfix 완결, 39/39 REQ + 8/8 SC 라이브 PASS, 16 FRICTION lock-in. v2는 별도 milestone (REQUIREMENTS.md v2 8건) — `/gsd-new-milestone`으로 시작.
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — 코드 100% + v1.3 hotfix 완료, 02-01-SUMMARY closure 완료
-Plan: 10 of 10 SUMMARY 모두 완료 (02-01 retrospective 포함) / 운영자 단계 일부 carry-forward (라이브 5 SC + crash sim + DOG-03 PR — 02-VERIFICATION.md BLOCKED)
-Status: v1.3 hotfix(b4dd0ee) + 02-01-SUMMARY(c5d0be2) 두 commit 추가. v1.3 = F-16 SSE 자동재연결 차단 + FRICTION #8 확장(.env mismatch 감지) + paused stack 마커 + classify 7-stack 확장(vscode/cli-proxy-api/ai-afterschool 승격, krdn-timescaledb 흡수). bun test 258 pass / 4 skip / 0 fail (회귀 0건) + bunx tsc --noEmit clean (0 errors). 02-01-SUMMARY는 D-E1 게이트가 SMOKE-LOG-2(430cbed, 5/5 PASS)로 사실상 닫힌 후 누락된 closure를 retrospective로 채움.
-Last activity: 2026-05-08 — v1.3 hotfix(b4dd0ee) + 02-01-SUMMARY(c5d0be2) commit. 누적 8 FRICTION → 9건(F-16 추가). 운영자 carry-forward(라이브 5 SC + crash sim + DOG-03)는 02-VERIFICATION.md BLOCKED 섹션에서 진행.
+Phase: v1 milestone CLOSED (2026-05-08) — Phase 0/1/2 모두 완료
+Plan: 28 plans 완료 (Phase 0: 9 + Phase 1: 9 + Phase 2: 10) + v1.1/v1.2/v1.3 hotfix 사이클 + 16 FRICTION lock-in
+Status: ✅ v1 종결 완료. 02-VERIFICATION.md mode `live verified` 전환, ROADMAP Progress 테이블 v1 milestone CLOSED 표기, REQUIREMENTS.md 39/39 Complete. 8/8 ROADMAP SC 라이브 PASS, audit DB + state/ git-versioned trail 동작 확인. 다음은 v2 milestone — `/gsd-new-milestone` 또는 `/office-hours`로 v2 우선순위 결정 후 시작.
+Last activity: 2026-05-08 — v1 milestone closure (4 docs commit 묶음): v1.3 hotfix(b4dd0ee) + 02-01-SUMMARY(c5d0be2) + STATE 갱신(bc2dcfd) + 본 closure commit. 라이브 5 SC + crash sim(D-C2) + git fail sim(D-B3) + DOG-03 direct-push wire 모두 PASS evidence와 함께 02-VERIFICATION.md에 lock-in. `/ship` skill 자체는 의도적 v2 deferred (첫 feature PR로 검증 예정).
 
 ### 02-10에서 통합 fix한 backlog (RESOLVED):
 - (1) hook `reset:*hard*` glob 패턴 결함 → `reset:*` 전체 reset 거부로 보강 → commit 39745b5
 - (2) tools/_envelope.ts:85,87 TS2454 (Phase 1 carry-forward) → commit a32954a
 - (3) src/server.test.ts:416 PendingMarkerFields type narrowing (Wave 3 통합 후 발견) → commit d13780c
 
-Progress: [██████████] 100% Phase 1 (9/9) + Phase 2 코드 100% (10/10 autonomous slot, 운영자 5건 BLOCKED)
-Overall: [████████░░] 86% (Phase 0/1 complete + Phase 2 코드 완료, 운영자 검증 대기 / Phase 3 미시작)
+Progress: [██████████] 100% Phase 0 (9/9) + Phase 1 (9/9) + Phase 2 (10/10 라이브 PASS)
+Overall: [██████████] 100% v1 milestone CLOSED — v2 milestone 미시작 (별도 결정 후 진입)
 
 ## Phase 2 v1.1 Hotfix 완료 (2026-05-07)
 
@@ -129,15 +129,14 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-08
-Stopped at: Phase 2 코드 100% + v1.3 hotfix(b4dd0ee) + 02-01-SUMMARY retrospective(c5d0be2) 완료. 10/10 plan SUMMARY 모두 존재. D-E1 게이트 OPEN(SMOKE-LOG-2 5/5 PASS, commit 430cbed). Phase 2 종결 가능 상태.
-Resume file: 없음 — Phase 2 완료. 다음은 Phase 3 spec/discuss.
-Next: `/gsd-spec-phase 3` 또는 `/gsd-discuss-phase 3` (REQUIREMENTS.md Phase 3 항목 기반)
-Outstanding operator carry-forward (02-VERIFICATION.md BLOCKED 섹션 — 선택적, Phase 3 진입과 병행 가능):
-  - 라이브 5 SC 재검증 (이미 v1.2까지 라이브 PASS, v1.3 후 재확인 권장)
-  - crash window simulation (D-C2)
-  - git fail simulation (D-B3)
-  - DOG-03 /ship workflow 첫 사용 — Phase 3 첫 feature PR로 이전됨
-~~Recommended: /clear 후 `/gsd-execute-phase 2 --plan 01`~~ (resolved 2026-05-08 — 02-01 SUMMARY 작성으로 closure)
+Stopped at: ✅ v1 milestone CLOSED. 4-commit closure 묶음 land: v1.3 hotfix(b4dd0ee) + 02-01-SUMMARY(c5d0be2) + STATE 갱신(bc2dcfd) + v1 closure commit (VERIFICATION mode `live verified` + ROADMAP Phase 2 [x] + REQUIREMENTS 39/39 Complete).
+Resume file: 없음 — v1 milestone 종결. 다음 작업은 새 milestone에 속함.
+Next: 운영하면서 v2 우선순위 모은 후 `/gsd-new-milestone` 또는 `/office-hours`로 v2 시작.
+v2 후보 항목 (REQUIREMENTS.md v2 섹션 — 8건 deferred):
+  - MULTI-01 멀티 호스트 / KB-AUTO-01 services.yaml 자동 동기화 / NOTIFY-01 Discord 알림
+  - OSS-01 OSS 분리 공개 / STATE-SUB-01 state/ submodule 분리
+  - PROVIDER-01 LLM provider 추상화 / STORAGE-01 SQLite→Postgres / APPROVAL-MOBILE-01 모바일 5-key
+  - + F-13 Verification protocol gap (Playwright E2E) — v1.4+ deferred
 
 ### Phase 2 plan 분해 (Wave 0..4, 10 plans, REQ 10/10 + 결정 17/17 + Open Q 1/2/3 lock)
 

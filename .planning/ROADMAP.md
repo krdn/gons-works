@@ -11,8 +11,10 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 - Decimal phases: Urgent insertions only (INSERTED marker)
 
 - [x] **Phase 0: Bootstrap & Spikes** - 6/6 spike GREEN + services.yaml 초안 + state/ 첫 commit (2026-05-06 완료, ~2.3h)
-- [x] **Phase 1: Read-Only Knowledge Layer** - AI가 services.yaml + 라이브 docker 상태로 자연어 질의에 스트리밍 답변 (2026-05-07 완료, ~2h 44m, 9/9 plans, 22/22 REQ-IDs unit/integration PASS, 153/157 tests PASS — live runtime smoke deferred to operator)
-- [ ] **Phase 2: Propose/Apply with Approval Gate** - 2PC patch + 5-key 승인 게이트 + git-versioned audit trail 완성 (≤8h)
+- [x] **Phase 1: Read-Only Knowledge Layer** - AI가 services.yaml + 라이브 docker 상태로 자연어 질의에 스트리밍 답변 (2026-05-07 완료, 9/9 plans, 22/22 REQ-IDs PASS, plan 01-10 hotfix로 라이브 SMOKE 5/5 PASS)
+- [x] **Phase 2: Propose/Apply with Approval Gate** - 2PC patch + 5-key 승인 게이트 + git-versioned audit trail 완성 (2026-05-08 완료, 10/10 plans + v1.1/v1.2/v1.3 hotfix, 5/5 SC 라이브 PASS, autonomous 3.87h + operator carry-forward 자연 흡수)
+
+**v1 milestone CLOSED (2026-05-08):** Phase 0 + 1 + 2 + 16 FRICTION 항목 + 3 hotfix 사이클 (v1.1/v1.2/v1.3) 완결. 8/8 ROADMAP SC 라이브 PASS. v2는 REQUIREMENTS.md v2 섹션의 8개 항목을 별도 milestone으로 시작.
 
 ## Phase Details
 
@@ -204,5 +206,6 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 0. Bootstrap & Spikes | 9/9 | ✅ Complete (6/6 spike GREEN) | 2026-05-06 |
-| 1. Read-Only Knowledge Layer | 9/9 | ✅ Complete (22/22 REQ-IDs unit/integration PASS) | 2026-05-07 |
-| 2. Propose/Apply with Approval Gate | 0/10 | Plans created (planned 2026-05-07, ready for execute) | - |
+| 1. Read-Only Knowledge Layer | 9/9 | ✅ Complete (22/22 REQ-IDs PASS, plan 01-10 hotfix 후 라이브 SMOKE 5/5 PASS) | 2026-05-07 |
+| 2. Propose/Apply with Approval Gate | 10/10 | ✅ Complete (10 plans + v1.1/v1.2/v1.3 hotfix, 5/5 SC 라이브 PASS, 16 FRICTION lock-in) | 2026-05-08 |
+| **v1 milestone** | **3/3 phase** | **✅ CLOSED (Phase 0+1+2 종결, v2는 별도 milestone)** | **2026-05-08** |

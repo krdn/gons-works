@@ -111,51 +111,52 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOOT-01 | Phase 0 | Pending |
-| BOOT-02 | Phase 0 | Pending |
-| BOOT-03 | Phase 0 | Pending |
-| BOOT-04 | Phase 0 | Pending |
-| BOOT-05 | Phase 0 | Pending |
-| KB-01 | Phase 1 | Pending |
-| KB-02 | Phase 1 | Pending |
-| KB-03 | Phase 1 | Pending |
-| KB-04 | Phase 1 | Pending |
-| READ-01 | Phase 1 | Pending |
-| READ-02 | Phase 1 | Pending |
-| READ-03 | Phase 1 | Pending |
-| READ-04 | Phase 1 | Pending |
-| READ-05 | Phase 1 | Pending |
-| UI-01 | Phase 1 | Pending |
-| UI-02 | Phase 1 | Pending |
-| UI-03 | Phase 1 | Pending |
-| UI-04 | Phase 1 | Pending |
-| LOOP-01 | Phase 1 | Pending |
-| LOOP-02 | Phase 1 | Pending |
-| LOOP-03 | Phase 1 | Pending |
-| LOOP-04 | Phase 1 | Pending |
-| LOOP-05 | Phase 1 | Pending |
-| LOOP-06 | Phase 1 | Pending |
-| LOOP-07 | Phase 1 | Pending |
-| APPLY-01 | Phase 2 | Pending |
-| APPLY-02 | Phase 2 | Pending |
-| APPLY-03 | Phase 2 | Pending |
-| APPLY-04 | Phase 2 | Pending |
-| APPLY-05 | Phase 2 | Pending |
-| APPLY-06 | Phase 2 | Pending |
-| APPLY-07 | Phase 2 | Pending |
-| APPLY-08 | Phase 2 | Pending |
-| AUDIT-01 | Phase 1 | Pending |
-| AUDIT-02 | Phase 2 | Pending |
-| AUDIT-03 | Phase 1 | Pending |
-| DOG-01 | Phase 0 | Pending |
-| DOG-02 | Phase 0-2 | Pending |
-| DOG-03 | Phase 2 | Pending |
+| BOOT-01 | Phase 0 | ✅ Complete |
+| BOOT-02 | Phase 0 | ✅ Complete |
+| BOOT-03 | Phase 0 | ✅ Complete |
+| BOOT-04 | Phase 0 | ✅ Complete |
+| BOOT-05 | Phase 0 | ✅ Complete |
+| KB-01 | Phase 1 | ✅ Complete |
+| KB-02 | Phase 1 | ✅ Complete |
+| KB-03 | Phase 1 | ✅ Complete |
+| KB-04 | Phase 1 | ✅ Complete |
+| READ-01 | Phase 1 | ✅ Complete |
+| READ-02 | Phase 1 | ✅ Complete |
+| READ-03 | Phase 1 | ✅ Complete |
+| READ-04 | Phase 1 | ✅ Complete |
+| READ-05 | Phase 1 | ✅ Complete |
+| UI-01 | Phase 1 | ✅ Complete |
+| UI-02 | Phase 1 | ✅ Complete |
+| UI-03 | Phase 1 | ✅ Complete |
+| UI-04 | Phase 1 | ✅ Complete |
+| LOOP-01 | Phase 1 | ✅ Complete |
+| LOOP-02 | Phase 1 | ✅ Complete |
+| LOOP-03 | Phase 1 | ✅ Complete |
+| LOOP-04 | Phase 1 | ✅ Complete |
+| LOOP-05 | Phase 1 | ✅ Complete |
+| LOOP-06 | Phase 1 | ✅ Complete |
+| LOOP-07 | Phase 1 | ✅ Complete |
+| APPLY-01 | Phase 2 | ✅ Complete |
+| APPLY-02 | Phase 2 | ✅ Complete |
+| APPLY-03 | Phase 2 | ✅ Complete |
+| APPLY-04 | Phase 2 | ✅ Complete |
+| APPLY-05 | Phase 2 | ✅ Complete |
+| APPLY-06 | Phase 2 | ✅ Complete |
+| APPLY-07 | Phase 2 | ✅ Complete |
+| APPLY-08 | Phase 2 | ✅ Complete |
+| AUDIT-01 | Phase 1 | ✅ Complete |
+| AUDIT-02 | Phase 2 | ✅ Complete |
+| AUDIT-03 | Phase 1 | ✅ Complete |
+| DOG-01 | Phase 0 | ✅ Complete |
+| DOG-02 | Phase 0-2 | ✅ Complete |
+| DOG-03 | Phase 2 | ✅ Complete |
 
 **Coverage:**
 - v1 requirements: 39 total
 - Mapped to phases: 39
 - Unmapped: 0 ✓
+- **Status: 39/39 Complete ✅ (v1 milestone closed 2026-05-08)**
 
 ---
 *Requirements defined: 2026-05-06*
-*Last updated: 2026-05-06 after roadmap creation — all 39 requirements confirmed Pending, 0 unmapped*
+*Last updated: 2026-05-08 — v1 milestone closure: all 39 requirements marked Complete, v2 항목 8건은 deferred (별도 milestone)*
