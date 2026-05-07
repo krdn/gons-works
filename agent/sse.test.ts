@@ -87,10 +87,100 @@ describe("toSSEFrame — event 이름 = ev.type, data = JSON.stringify(ev)", () 
           return "e"
         case "drift":
           return "d"
-        // TS strict 모드에서 case 빠지면 컴파일 에러 — 6개 모두 있어야 함.
+        // Phase 2 (UI-02 +3) — Plan 02-07
+        case "approval-required":
+          return "ar"
+        case "applied":
+          return "ap"
+        case "rolled-back":
+          return "rb"
+        // TS strict 모드에서 case 빠지면 컴파일 에러 — 9개 모두 있어야 함.
       }
     }
     expect(exhaust({ type: "final" })).toBe("f")
+  })
+
+  // === Phase 2 (UI-02 +3) — Plan 02-07 lock ===
+
+  test("approval-required — 7 fields preserved (nonce/stack/command/service/diff/reasoning/expiresAt)", () => {
+    const expiresAt = Date.now() + 120_000
+    const frame = toSSEFrame({
+      type: "approval-required",
+      nonce: "n-uuid-123",
+      stack: "news",
+      command: "compose restart",
+      service: "news-prod-app",
+      diff: "(no file change — command only: compose restart news-prod-app)",
+      reasoning: "redis 컨테이너 oomkilled로 재시작 필요",
+      expiresAt,
+    })
+    expect(frame.event).toBe("approval-required")
+    const parsed = JSON.parse(frame.data) as Record<string, unknown>
+    expect(parsed.type).toBe("approval-required")
+    expect(parsed.nonce).toBe("n-uuid-123")
+    expect(parsed.stack).toBe("news")
+    expect(parsed.command).toBe("compose restart")
+    expect(parsed.service).toBe("news-prod-app")
+    expect(parsed.diff).toContain("compose restart")
+    expect(parsed.reasoning).toContain("oomkilled")
+    expect(parsed.expiresAt).toBe(expiresAt)
+  })
+
+  test("applied — 6 fields preserved (nonce/stack/command/service/sha_after/duration_ms)", () => {
+    const frame = toSSEFrame({
+      type: "applied",
+      nonce: "n-uuid-456",
+      stack: "ais",
+      command: "compose restart",
+      service: "ais-prod-web",
+      sha_after: "abc1234deadbeef",
+      duration_ms: 4521,
+    })
+    expect(frame.event).toBe("applied")
+    const parsed = JSON.parse(frame.data) as Record<string, unknown>
+    expect(parsed.type).toBe("applied")
+    expect(parsed.nonce).toBe("n-uuid-456")
+    expect(parsed.stack).toBe("ais")
+    expect(parsed.command).toBe("compose restart")
+    expect(parsed.service).toBe("ais-prod-web")
+    expect(parsed.sha_after).toBe("abc1234deadbeef")
+    expect(parsed.duration_ms).toBe(4521)
+  })
+
+  test("rolled-back — with rollback_command (state-changing command path)", () => {
+    const frame = toSSEFrame({
+      type: "rolled-back",
+      nonce: "n-uuid-789",
+      stack: "n8n",
+      reason: "git commit failed: pre-commit hook rejected",
+      rollback_command: "compose down",
+      rollback_ok: true,
+    })
+    expect(frame.event).toBe("rolled-back")
+    const parsed = JSON.parse(frame.data) as Record<string, unknown>
+    expect(parsed.type).toBe("rolled-back")
+    expect(parsed.nonce).toBe("n-uuid-789")
+    expect(parsed.stack).toBe("n8n")
+    expect(parsed.reason).toContain("git commit failed")
+    expect(parsed.rollback_command).toBe("compose down")
+    expect(parsed.rollback_ok).toBe(true)
+  })
+
+  test("rolled-back — without rollback_command (read-only command, e.g. compose ps)", () => {
+    const frame = toSSEFrame({
+      type: "rolled-back",
+      nonce: "n-uuid-abc",
+      stack: "krdn-fx",
+      reason: "docker exit 1: no such service",
+    })
+    expect(frame.event).toBe("rolled-back")
+    const parsed = JSON.parse(frame.data) as Record<string, unknown>
+    expect(parsed.type).toBe("rolled-back")
+    expect(parsed.nonce).toBe("n-uuid-abc")
+    expect(parsed.stack).toBe("krdn-fx")
+    expect(parsed.reason).toContain("no such service")
+    expect(parsed.rollback_command).toBeUndefined()
+    expect(parsed.rollback_ok).toBeUndefined()
   })
 })
 
