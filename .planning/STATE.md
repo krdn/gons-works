@@ -81,11 +81,28 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-07
-Stopped at: Phase 2 discuss 완료 — 4 area 14 결정 + 1 게이팅 lock + 1 post-advisor area. CONTEXT.md + DISCUSSION-LOG.md 작성 완료.
-Resume file: .planning/phases/02-propose-apply-approval-gate/02-CONTEXT.md
-Next: `/gsd-plan-phase 2` (CONTEXT 입력 lock, plan 첫 task = D-E1 Phase 1 live smoke gate)
-Outstanding operator actions (pre-execute gate D-E1, plan 첫 task로 wrap): (1) VOYAGE_API_KEY 회전 (2) Phase 1 live runtime smoke 5단계
-Recommended: /clear 후 /gsd-plan-phase 2
+Stopped at: Phase 2 plan-phase 완료 — PATTERNS.md(13 신설 모듈 매핑) + 10 PLAN.md (Wave 0..4) + ROADMAP plans 섹션 갱신. plan-checker revision 1 통과(BLOCKER #1 = 02-06 Task 3 APPLY_TEST_MODE seam 추가, WARNING #1 = 02-08 line 272 D-A5 정정).
+Resume file: .planning/phases/02-propose-apply-approval-gate/02-01-PLAN.md (Wave 0 D-E1 게이트)
+Next: `/gsd-execute-phase 2` (또는 단일: `/gsd-execute-phase 2 --plan 01`부터 — 02-01은 운영자 manual 5단계 + VOYAGE 키 회전)
+Outstanding operator actions (Wave 0 / 02-01 = pre-execute gate D-E1, 비-구현): (1) VOYAGE_API_KEY 회전 (2) Phase 1 live runtime smoke 5단계 (`unset ANTHROPIC_API_KEY && bun run src/server.ts` → 2 NL 쿼리 + drift mutation + sqlite3 audit). 5/5 PASS 후 02-02부터 구현 진입.
+Recommended: /clear 후 `/gsd-execute-phase 2 --plan 01`
+
+### Phase 2 plan 분해 (Wave 0..4, 10 plans, REQ 10/10 + 결정 17/17 + Open Q 1/2/3 lock)
+
+- **Wave 0:** 02-01 D-E1 게이트 (비-구현, 30min)
+- **Wave 1 (병렬 가능):** 02-02 approval/store (45min) / 02-03 state/commit + pre-commit hook (1h) / 02-04 init-state-compose + tests/fixtures (1h 30min)
+- **Wave 2:** 02-05 proposePatch + system-prompt 갱신 (1h) → 02-06 applyPatch 2PC orchestrator + Task 3 APPLY_TEST_MODE seam (1h 30min, 가장 무거움)
+- **Wave 3 (병렬 가능):** 02-07 SSE +3 + LOOP interrupt+resume (1h) / 02-08 server route + recoverPendingMarkers (1h) / 02-09 5-key form + 인라인 legend + edit textarea (1h)
+- **Wave 4:** 02-10 E2E 5 SC + AUDIT-02 + crash sim + DOG-03 /ship + FRICTION (1h)
+
+추정 합계 ~10h (≤8h ROADMAP 조항 +2h 초과, 18h 총 예산 ~5h 여유 — 사용자 승인). 02-06이 90min 초과 시 02-06b로 분할 옵션 본문 명시.
+
+### Open Question lock (재논의 금지)
+
+- **Q1 5-key 'e' UX:** textarea 로컬 편집만 (LLM 재제안은 v2). 02-09에 lock.
+- **Q2 LOOP interrupt+resume:** dispatch 내부 await + 단일 tool_result push (LOOP-04 PITFALL #1 보호). 02-07에 lock.
+- **Q3 D-A5 (iii)성공+(iv)실패:** marker original_remote_content 보관 → SSH `cat >`로 원본 복원 + state 미러 revert. 02-06에 lock.
+- **추가 — APPLY_TEST_MODE seam (BLOCKER #1 해소):** 02-06 Task 3에서 dependency injection seam 추가, PROD 보호(D-A3) + SC #2/#3 라이브 검증 둘 다 만족.
 
 ### Phase 2 carry-forward 요약 (재논의 금지)
 
