@@ -154,3 +154,148 @@ curl -s --max-time 30 "http://127.0.0.1:3000/chat-stream?prompt=hello"
 
 **Why missed in plan-checker:** plan-check phase가 D-04 cross-reference를 명시 검증하지 않음. 향후 plan checker 룰 추가 검토:
 - "state/.git" 패턴이 plan에 등장하면 D-04 위반 의심으로 BLOCKER 표시
+
+---
+
+## F-5 — `.git/hooks/pre-commit` `reset:*hard*` glob pattern 결함 (APPLY-07 reset 분기 비활성)
+
+**Status:** RESOLVED 2026-05-07 (plan 02-10 commit `39745b5 fix(02-10): APPLY-07 hook reset glob 패턴 — 모든 reset 분기 거부`)
+**Severity:** MEDIUM (APPLY-07 lock 의도 일부 우회 — `git reset` 시도가 hook 검사를 통과)
+**Discovered:** 2026-05-07 (plan 02-03 advisor 권고)
+
+**Symptom:**
+- `.git/hooks/pre-commit` + `scripts/install-state-hook.sh` 의 case 패턴: `rebase*|*rewrite*|reset:*hard*`
+- 그러나 `git reflog -1 --format=%gs` 출력은 `reset: moving to <ref>` 양식이며 hard/soft/mixed 옵션 정보가 포함되지 않음
+- 결과: `reset:*hard*` glob 매칭 0건 → APPLY-07 의 reset 차단 의도가 실질적으로 비활성
+
+**Verification before fix:**
+```bash
+git reset --soft HEAD~1   # reflog: "reset: moving to HEAD~1"
+git reset --hard HEAD~1   # reflog: "reset: moving to HEAD~1"  ← hard/soft 구분 없음
+```
+
+**Root cause:**
+- `git reflog`의 `%gs` 양식은 reset 명령의 옵션을 기록하지 않는다 (의도 자체를 추적하기에는 부적합).
+- 안전한 정책 = state/ 변경에 대한 **모든 형태의 reset 거부** (mixed/soft 도 history rewrite 가능성 있음).
+
+**Fix:**
+- glob 패턴 변경: `rebase*|*rewrite*|reset:*hard*` → `rebase*|*rewrite*|reset:*`
+- `.git/hooks/pre-commit` 와 `scripts/install-state-hook.sh` 의 BLOCK heredoc 양쪽 동일 갱신
+- `bash scripts/install-state-hook.sh` 두 번째 실행 시 sha256 변화 0 (idempotent 보존)
+- `bun test` 회귀 0건 (hook 은 commit 시에만 동작)
+
+**Carry-forward:**
+- 향후 hook 수정 시 reflog 양식 사전 확인 필수 (`%gs` 출력 sample 채취 후 패턴 작성)
+- plan-check 룰 후보: hook script 의 case 패턴이 `git reflog %gs` 실제 출력 sample 과 매칭되는지 자동 검사
+
+---
+
+## F-6 — `tools/_envelope.ts:85,87` TS2454 (`Variable 'result' is used before being assigned`)
+
+**Status:** RESOLVED 2026-05-07 (plan 02-10 commit `a32954a fix(02-10): tools/_envelope.ts TS2454 — result undefined union`)
+**Severity:** LOW (CI 가 strict mode 일 때 build break, 그러나 `bun test` runtime 영향 0 — bun 은 TS 타입 검사를 build 단계에 분리)
+**Discovered:** Phase 1 (carry-forward) → Phase 2 wave 3 통합 후 baseline `bunx tsc --noEmit` 으로 노출
+
+**Symptom:**
+- `let result: T | ToolError` (line 50, init 없음)
+- try/catch 양 경로 모두 result 할당 후 finally 도달하지만 TS 의 control-flow analysis 가 catch 경로 + finally 의 result 사용을 init-after-throw 가능성으로 narrow 못함
+- `tsc --noEmit` 출력: `Variable 'result' is used before being assigned` × 2 (line 85, 87)
+
+**Fix (옵션 비교):**
+
+| 옵션 | 변경 | trade-off |
+|------|------|-----------|
+| (a) `result: T \| ToolError \| undefined` + `result!` narrow | (선택) | 의미 동일, runtime 영향 0, finally 사용처 narrow 명시 |
+| (b) try 시작에 `let result: T \| ToolError = (undefined as any)` 임시 init | reject | strict 회피 hack |
+| (c) finally 블록을 try/catch 분기 내부로 이동 (audit 호출 위치 변경) | reject | logTool 항상 호출 invariant 깨짐 |
+
+옵션 (a) 적용. finally 의 `isToolError(result!)` 외에도 line 85/87 의 result 사용처도 `const r = result!` 변수로 narrow 일원화.
+
+**Carry-forward:**
+- TS strict 환경에서 `let x: T` (init 없음) 패턴은 finally 블록 사용 시 항상 `T | undefined` 로 선언 권장
+- 향후 비슷한 패턴 발견 시 동일 fix 적용
+
+---
+
+## F-7 — `src/server.test.ts:416` TS2345 PendingMarkerFields fixture missing fields
+
+**Status:** RESOLVED 2026-05-07 (plan 02-10 commit `d13780c fix(02-10): src/server.test.ts:416 PendingMarkerFields fixture 보강`)
+**Severity:** LOW (test 코드 type error, runtime 동작은 정상 — `bufferPendingDrift` 가 `[key: string]: unknown` index signature 로 fixture 받음)
+**Discovered:** 2026-05-07 (Phase 2 wave 3 통합 후 baseline tsc 검사)
+
+**Symptom:**
+- `src/server.test.ts:416` 의 markers fixture: `[{ nonce: "a", stack: "news", command: "compose ps" }]`
+- `PendingMarkerFields` interface 가 4개 추가 required field 보유 (`service`, `docker_started_at`, `docker_finished_at`, `exit_code`)
+- 그러나 interface 에 `[key: string]: unknown` index signature 가 있어 runtime 동작은 정상 (`bun test` 통과)
+- TS 만 strict assignability 위반 → 옵션 (a) fixture 보강 vs 옵션 (b) `Partial<PendingMarkerFields>[]` 완화
+
+**Fix:**
+- 옵션 (a) 적용 — fixture 에 4개 필드 추가 (service: "news-prod-app", docker_started_at: null, docker_finished_at: null, exit_code: null)
+- production type (`src/server.ts` PendingMarkerFields interface) 영향 0
+- bun test 252 pass / 0 fail / 4 skip 회귀 0건 + tsc clean
+
+**Carry-forward:**
+- test fixture 작성 시 interface 의 모든 required field 명시 권장 (index signature 가 있어도 완전한 fixture 가 readability + 향후 schema 변경 시 안전)
+
+---
+
+## F-8 — Plan 02-10 Task 1 = `checkpoint:human-action`, autonomous executor 가 라이브 검증을 자동화할 수 없음
+
+**Status:** STRUCTURAL — by design (PLAN frontmatter `autonomous: false` lock)
+**Severity:** LOW (PLAN 가 explicit 하게 표시했고 checkpoint_protocol 가이드를 준수하면 정상 흐름)
+**Discovered:** 2026-05-07 (plan 02-10 executor advisor 호출 시점)
+
+**Symptom:**
+- Orchestrator prompt 가 "ROADMAP SC 5/5 PASS / Crash simulation 결과 / DOG-03 PR URL" 을 요구
+- 그러나 PLAN.md Task 1 = `checkpoint:human-action` (운영자가 브라우저 5-key form 클릭, kill -9, pre-commit hook force-fail, /ship GH 인증 흐름 실행 필요)
+- executor 는 라이브 결과를 fabricate 할 수 없음
+
+**Resolution:**
+- autonomous-first 접근 적용:
+  1. 자동화 가능한 모든 단계 (3 backlog hotfix + bun test + tsc + install-state-hook idempotency + REQ-ID 표 + FRICTION) 본 plan 에서 완료
+  2. 라이브 단계는 02-VERIFICATION.md 의 BLOCKED 섹션으로 명시
+  3. orchestrator 에게는 checkpoint 반환으로 운영자 단계 인계
+- PLAN 의 `autonomous: false` 가 olive branch 역할 — orchestrator 가 라이브 단계를 운영자에게 위임할 명시적 룰
+
+**Carry-forward:**
+- 향후 plan 의 `checkpoint:human-action` task 가 prompt 의 "deliverable" 과 충돌하면 advisor 호출 → autonomous-first 분리 후 checkpoint 반환 패턴이 안전
+- gstack-gsd-melodic-raven 다음 개정판 입력: orchestrator prompt 작성 시 PLAN 의 checkpoint 타입을 사전 검사하여 deliverable 을 분리
+
+---
+
+## Phase 2 카운트 누적 (수정됨)
+
+- F-1 (RESOLVED Phase 1 plan 01-10)
+- F-2 (RESOLVED Phase 1 plan 01-10)
+- F-3 (Voyage AI 무료 등급 함정, MEDIUM, SOP 보강)
+- F-3-2 (RESOLVED — push origin main, dispatcher root-cause는 gsd 측 책임)
+- F-4 (RESOLVED — 49892d9 D-04 lock hotfix)
+- F-5 (RESOLVED 02-10 — hook reset glob pattern)
+- F-6 (RESOLVED 02-10 — tools/_envelope.ts TS2454)
+- F-7 (RESOLVED 02-10 — src/server.test.ts:416 PendingMarkerFields fixture)
+- F-8 (STRUCTURAL — checkpoint:human-action 자동화 불가, autonomous-first 패턴 lock)
+
+**Phase 2 신규 마찰 = 5건 (F-3-2, F-4, F-5, F-6, F-7, F-8 중 5+) — PLAN 의 success_criteria "5+ 마찰 항목" 충족.**
+
+## Cross-Phase Trends (Phase 0+1+2 종합)
+
+- **LLM 모델명 / API endpoint / SDK 호환성:** spike-driven 검증이 정답 (Phase 0 #1, Phase 2 APPLY-08 D-10 lock)
+- **research artifact prose vs code lock 충돌:** REQUIREMENTS / ROADMAP 을 권위로 (Phase 2 F-4 carry, plan-check 룰 후보)
+- **환경변수 빈 export 함정 (FRICTION #8):** startup probe + envelope 메시지로 친절하게
+- **in-memory state singleton 의 test isolation:** `_resetForTest` 패턴 (Phase 1 LOOP-07 carry)
+- **2PC orchestration:** docker exec → git commit 순서 + marker lifecycle + atomic consumed flag = 핵심 invariants (research_artifact_corrections #1 lock)
+- **Hook script 정확성:** `git reflog` `%gs` 양식 사전 확인 필수 (Phase 2 F-5)
+- **TS strict + finally 패턴:** `let x: T` (init 없음) → `let x: T | undefined` + `x!` narrow 권장 (Phase 2 F-6)
+- **Test fixture 완전성:** interface 의 모든 required field 명시 (index signature 있어도) — readability + schema 변경 안전 (Phase 2 F-7)
+- **`checkpoint:human-action` task vs orchestrator deliverable 충돌:** autonomous-first 분리 + checkpoint 반환 패턴 (Phase 2 F-8)
+
+## 다음 개정판 입력 항목
+
+위 마찰 항목들을 `~/.claude/plans/gstack-gsd-melodic-raven.md` 의 다음 개정판에 반영:
+- gsd-tools.cjs 명령 정리 (commit 자동화) — Phase 0/1/2 carry
+- DESIGN.md 내 prose vs code 모순 검출 자동화 (research_artifact_corrections 패턴) — Phase 2 F-4
+- phase plan 작성 시 advisor 호출 시점 lock (orientation 후 substantive 전) — gsd-execute-phase 가이드 carry
+- worktree dispatcher base ref 결함 root-cause fix (Phase 2 F-3-2)
+- Plan 의 `checkpoint:human-action` task 가 orchestrator prompt 의 deliverable 과 충돌할 때의 autonomous-first 분리 패턴 lock (Phase 2 F-8)
+- Hook script 작성 시 `git reflog` `%gs` 출력 sample 사전 채취 + plan-check 룰 (Phase 2 F-5)
+

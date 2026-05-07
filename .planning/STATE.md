@@ -9,15 +9,15 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 4 시작 (02-10 E2E + AUDIT-02 + crash sim + DOG-03 + backlog)
-Plan: 9 of 10 PASS (D-E1, 02-02 ~ 02-09) / 1 plan pending (02-10)
-Status: Wave 3 완료 — 02-07 SSE 9-event union + agent/loop interrupt+resume + 30s keep-alive(39 PASS), 02-08 POST /approval/:id route + recoverPendingMarkers + APPLY-08 (23 PASS), 02-09 public/index.html 5-key form + 인라인 legend + 보안 lock (innerHTML XSS gate 0). agent/loop.ts auto-merge OK (02-07 + 02-08 hunks 분리). 252/256 전체 PASS (4 skip). PROD 깨끗 재확인. integration risk 1건(orchestrator dispatch prompt vs PLAN.md body schema)는 두 executor 모두 PLAN.md를 canonical로 채택해서 자동 보정.
-Last activity: 2026-05-07 — Wave 3 완료. Wave 4 (02-10 E2E 5 SC + AUDIT-02 git log + crash sim + DOG-03 /ship + FRICTION + 3 backlog 통합 fix) dispatch 진행.
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 4 진행 중 (02-10 autonomous slot DONE, 운영자 단계 대기)
+Plan: 10 of 10 (autonomous slot DONE — 02-02..02-09 + 02-10 docs/backlog hotfix) / 운영자 단계 대기 (라이브 5 SC + crash sim + DOG-03 PR)
+Status: 02-10 autonomous-first 단계 완료 — 3 backlog 통합 fix (TS2454 a32954a, PendingMarkerFields fixture d13780c, hook reset glob 39745b5) + 02-VERIFICATION.md 267 LoC + FRICTION F-5/F-6/F-7/F-8 4건 신규 추가 (누적 8건). bun test 252 pass / 4 skip / 0 fail (회귀 0건) + bunx tsc --noEmit clean (0 errors). install-state-hook.sh 두 번째 실행 sha256 변화 0 (idempotent OK). 라이브 5 SC + crash window (D-C2) + git fail (D-B3) + DOG-03 /ship 은 Task 1 = checkpoint:human-action 으로 운영자 단계 BLOCKED 명시.
+Last activity: 2026-05-07 — Wave 4 02-10 autonomous slot 완료 (4 commits: a32954a, d13780c, 39745b5, docs commit). 운영자 단계 시 02-VERIFICATION.md BLOCKED 섹션 채움 + main 머지.
 
-### 02-10에서 통합 fix할 backlog (Wave 1-3 누적):
-- (1) hook `reset:*hard*` glob 패턴 결함 → `reset:*` 전체 reset 거부로 보강
-- (2) tools/_envelope.ts:85,87 TS2454 (Phase 1 carry-forward)
-- (3) src/server.test.ts:416 PendingMarkerFields type narrowing (Wave 3 통합 후 발견)
+### 02-10에서 통합 fix한 backlog (RESOLVED):
+- (1) hook `reset:*hard*` glob 패턴 결함 → `reset:*` 전체 reset 거부로 보강 → commit 39745b5
+- (2) tools/_envelope.ts:85,87 TS2454 (Phase 1 carry-forward) → commit a32954a
+- (3) src/server.test.ts:416 PendingMarkerFields type narrowing (Wave 3 통합 후 발견) → commit d13780c
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
@@ -87,7 +87,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-07
-Stopped at: Phase 2 plan-phase 완료 — PATTERNS.md(13 신설 모듈 매핑) + 10 PLAN.md (Wave 0..4) + ROADMAP plans 섹션 갱신. plan-checker revision 1 통과(BLOCKER #1 = 02-06 Task 3 APPLY_TEST_MODE seam 추가, WARNING #1 = 02-08 line 272 D-A5 정정).
+Stopped at: Phase 2 Wave 4 02-10 autonomous slot 완료. 라이브 5 SC + crash sim (D-C2) + git fail sim (D-B3) + DOG-03 /ship 은 운영자 단계 (Task 1 = checkpoint:human-action 으로 인계). 02-VERIFICATION.md 의 BLOCKED 섹션을 운영자 라이브 단계 후 채워서 main 머지.
 Resume file: .planning/phases/02-propose-apply-approval-gate/02-01-PLAN.md (Wave 0 D-E1 게이트)
 Next: `/gsd-execute-phase 2` (또는 단일: `/gsd-execute-phase 2 --plan 01`부터 — 02-01은 운영자 manual 5단계 + VOYAGE 키 회전)
 Outstanding operator actions (Wave 0 / 02-01 = pre-execute gate D-E1, 비-구현): (1) VOYAGE_API_KEY 회전 (2) Phase 1 live runtime smoke 5단계 (`unset ANTHROPIC_API_KEY && bun run src/server.ts` → 2 NL 쿼리 + drift mutation + sqlite3 audit). 5/5 PASS 후 02-02부터 구현 진입.
