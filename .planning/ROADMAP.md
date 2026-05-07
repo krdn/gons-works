@@ -149,7 +149,39 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
   3. docker 적용이 실패하면 git commit이 생성되지 않고 이전 상태로 롤백됨
   4. `git log state/` 각 커밋 body에 user prompt + AI reasoning이 포함되어 한 줄로 변경 이력 추적 가능
   5. `/ship` 실행으로 GitHub PR이 생성됨 (dogfood meta 검증)
-**Plans**: TBD
+**Plans**: 10 plans across 4 waves (planned 2026-05-07)
+
+**Wave 0** *(pre-execute gate, non-implementation)*
+- `02-01-PLAN.md` — D-E1 게이트: Phase 1 live runtime smoke 5단계 + VOYAGE_API_KEY 회전 (운영자 manual)
+
+**Wave 1** *(no implementation deps, parallel)*
+- `02-02-PLAN.md` — approval/store.ts (APPLY-03 PITFALL #3 prevention — nonce + 2분 expiresAt + consumed flag)
+- `02-03-PLAN.md` — state/commit.ts + state/.git/hooks/pre-commit + state/.gitignore (APPLY-06/07, D-D1/D3, PITFALL #8)
+- `02-04-PLAN.md` — scripts/init-state-compose.ts + state/compose 5 mirror + tests/fixtures/test-compose.yml + tests/setup/docker-context.ts (D-A2/A3)
+
+**Wave 2** *(blocked on Wave 1)*
+- `02-05-PLAN.md` — tools/proposePatch.ts + tools/_index.ts + agent/system-prompt.ts (APPLY-01, D-B1/B2/D2)
+- `02-06-PLAN.md` — tools/applyPatch.ts 2PC orchestrator (APPLY-02/04/05, D-A5/B3/C1/C4/D4 — Open Q 3 옵션 A lock)
+
+**Wave 3** *(blocked on Wave 2)*
+- `02-07-PLAN.md` — agent/sse.ts +3 events + agent/loop.ts dispatch interrupt+resume + 30s keep-alive (UI-02 +3, Open Q 2)
+- `02-08-PLAN.md` — src/server.ts POST /approval/:id + recoverPendingMarkers probe + COPILOT_MODEL_PROPOSE 일괄 swap (APPLY-03/05/08)
+- `02-09-PLAN.md` — public/index.html 5-key form + 인라인 legend + edit textarea (APPLY-02 UI, DESIGN #5, Open Q 1 lock)
+
+**Wave 4** *(blocked on Wave 3)*
+- `02-10-PLAN.md` — E2E 5 SC verify (D-A3 test stack) + AUDIT-02 grep + crash/git-fail simulation + DOG-03 /ship + FRICTION (AUDIT-02, DOG-03)
+
+**Cross-cutting constraints:**
+- D-A1/A2/A3/A4/A5: state/compose mirror 5 + scripts/init-state-compose 일회성 + 192.168.0.8 test stack + applyPatch 진입 1회 SHA + SSH 경유 (`docker --context home-server -f` 금지)
+- D-B1/B2/B3: 7-command union literal + 단일 proposePatch tool + git commit fail 시 역 docker rollback envelope
+- D-C1/C2/C3/C4: marker lifecycle + boot detect drift event + 점진 update + 동시성 reject
+- D-D1/D2/D3/D4: `apply(<stack>): <command>` Subject + body 4 필드 + 200/500/100자 cap + spawn -F + applied/rolled-back만 commit
+- D-E1: Phase 2 첫 plan (02-01) = Phase 1 live smoke 5단계 + VOYAGE 키 회전
+- 2PC 순서 = docker exec → state/ git commit (research_artifact_corrections #1 — REQUIREMENTS APPLY-04 + ROADMAP SC#2 + PITFALLS Pitfall 2 prevention 코드 모두 docker→git, ARCHITECTURE.md Pattern 4 prose 무시)
+- LLM 모델 = COPILOT_MODEL_PROPOSE = claude-opus-4-6 (D-10 정정 — APPLY-08 텍스트 'Opus 4.7'은 외부 API 미공개)
+- 5-key 'e' UX = textarea 로컬 편집 (LLM 재제안은 v2 deferred)
+- LOOP interrupt+resume = dispatch 내부 await + 즉시 applyPatch + tool_result push (Open Q 2 lock)
+- 60s SSE chunk watchdog vs 2분 approval 충돌 = 30s keep-alive interval로 회피
 **UI hint**: yes
 
 ---
@@ -172,5 +204,5 @@ gons-works는 192.168.0.5 홈서버의 6-10개 Docker Compose 스택을 1인 운
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 0. Bootstrap & Spikes | 9/9 | ✅ Complete (6/6 spike GREEN) | 2026-05-06 |
-| 1. Read-Only Knowledge Layer | 0/TBD | Not started | - |
-| 2. Propose/Apply with Approval Gate | 0/TBD | Not started | - |
+| 1. Read-Only Knowledge Layer | 9/9 | ✅ Complete (22/22 REQ-IDs unit/integration PASS) | 2026-05-07 |
+| 2. Propose/Apply with Approval Gate | 0/10 | Plans created (planned 2026-05-07, ready for execute) | - |
