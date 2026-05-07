@@ -75,6 +75,7 @@ None yet.
 |----------|------|--------|-------------|
 | v2+ | state/ git submodule 분리 | Deferred | Phase 0 planning |
 | v2+ | Postgres 마이그레이션 | Deferred | PROJECT.md Out of Scope |
+| v2+ | open-webui Phase 2 5-stack 복관 | Deferred | Phase 2 Option A (2026-05-07) — 192.168.0.5에서 plain docker run으로 실행 중. compose 전환 후 stack enum 5-element 복관. |
 | v2+ | Discord webhook 알림 (NOTIFY-01) | Deferred | REQUIREMENTS.md v2 |
 | v2+ | OSS 공개 (OSS-01) | Deferred | REQUIREMENTS.md v2 |
 

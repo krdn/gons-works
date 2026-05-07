@@ -59,7 +59,7 @@ Phase 2가 신설/확장하는 13개 포인트 1줄 요약. CONTEXT.md `<code_co
 ```typescript
 // tools/_index.ts:43-62 TOOL_SCHEMAS 패턴 차용 — 신규 tool도 동일 위치에 등록.
 export const ProposePatchInput = z.object({
-  stack: z.enum(["news", "ais", "n8n", "open-webui", "krdn-fx"]),  // D-A1 lock
+  stack: z.enum(["news", "ais", "n8n", "krdn-fx"]),  // D-A1 lock + Option A 4-stack scope (open-webui 제외, v2 backlog)
   command: z.union([                                                // D-B1 7 union literal
     z.literal("compose up -d"),
     z.literal("compose down"),
@@ -162,7 +162,7 @@ const pending = new Map<string, PendingApproval>()
 interface PendingApproval {
   nonce: string                          // crypto.randomUUID() per proposePatch
   diff: string
-  stack: "news" | "ais" | "n8n" | "open-webui" | "krdn-fx"
+  stack: "news" | "ais" | "n8n" | "krdn-fx"  // Option A 4-stack scope
   command: ComposeCommand                // D-B1 7-union
   fileEdit?: { path: string; newContent: string }
   reasoning: string                       // D-D2 source
@@ -375,7 +375,7 @@ writeFileSync(`state/.pending/${nonce}.json`, JSON.stringify(marker), { encoding
 import { $ } from "bun"
 import { load } from "js-yaml"
 
-const STACKS = ["news", "ais", "n8n", "open-webui", "krdn-fx"]  // D-A1 lock
+const STACKS = ["news", "ais", "n8n", "krdn-fx"]  // D-A1 lock + Option A 4-stack scope
 
 async function main() {
   const yaml = ServicesYamlSchema.parse(load(await Bun.file("state/services.yaml").text()))

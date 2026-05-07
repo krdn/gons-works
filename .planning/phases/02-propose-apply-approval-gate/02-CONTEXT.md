@@ -10,7 +10,7 @@
 AI가 192.168.0.5 운영 서버의 Docker Compose 변경을 unified diff로 제안 → 운영자가 5-key 게이트(`y/n/e/d/a`)로 승인 → 원자적 2PC(docker exec → state/ git commit)로 적용 → AI reasoning 포함 git commit으로 audit trail 생성. Phase 2는 Phase 1 read-only 코파일럿에 **쓰기 능력 + 승인 게이트 + git-versioned audit**를 추가.
 
 **구성 요소 (D-A1..D-A4 lock):**
-1. `state/compose/{stack}.yml` 미러 5개 (news / ais / n8n / open-webui / krdn-fx) — Phase 2 첫 plan에서 SSH로 일회성 복사
+1. `state/compose/{stack}.yml` 미러 4개 (news / ais / n8n / krdn-fx) — Phase 2 첫 plan에서 SSH로 일회성 복사. ❌ open-webui 제외 (192.168.0.5에서 plain `docker run`으로 실행, compose 미관리). v2 backlog: open-webui compose 전환 후 5-stack 복관.
 2. `tools/proposePatch.ts` 단일 tool: `{ stack, command(7-union), fileEdit?: {path, newContent}, reasoning }` (D-B1..D-B2)
 3. `approval/store.ts` in-memory `Map<sessionId, PendingApproval>` (PITFALL #3 prevention 코드 사용 — nonce + 2분 expiresAt + consumed flag)
 4. `tools/applyPatch.ts` 2PC orchestrator (docker exec → git commit, APPLY-04 lock + 게이트 안전망 D-B3 보강)
@@ -67,7 +67,7 @@ Phase 0(~2.3h) + Phase 1(~2h 44m) 사용. 18h 총 예산 중 약 13h 남음.
 - **D-B2:** **단일 proposePatch tool, `fileEdit`는 optional.** Tool input schema:
   ```ts
   {
-    stack: 'news' | 'ais' | 'n8n' | 'open-webui' | 'krdn-fx',
+    stack: 'news' | 'ais' | 'n8n' | 'krdn-fx',  // Option A 4-stack scope (open-webui 제외, v2 backlog)
     command: union(D-B1 7-list),
     fileEdit?: { path: string, newContent: string },  // path strict: state/compose/{stack}.yml | state/services.yaml
     reasoning: string  // max 500자, sanitization 후 git commit body로 (D-D2 lock)
