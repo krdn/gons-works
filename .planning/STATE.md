@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — Phase 1 hotfix(01-10) 완료, D-E1 재검증 대기
-Plan: Phase 1 plan 01-10 hotfix 완료 / Phase 2 plan 02-01 D-E1 재실행 대기
-Status: F-1 (compactHistory array aliasing) + F-2 (SSE pendingWrites flush) RESOLVED. agent/loop.ts + src/server.ts 수정 + 회귀 방지 test 5개 추가. 158/0 PASS. D-E1 재실행(`/gsd-execute-phase 2 --plan 01`) → 5/5 PASS 도달 시 02-02..02-10 진입 unblock 예상.
-Last activity: 2026-05-07 — Plan 01-10 (carry-back hotfix) 5 task 완료 / 6 commit. compactHistory가 항상 새 array 반환하도록 변경, server.ts emit 큐+Promise.allSettled flush 적용. 진단 spike 4개로 H4(array aliasing) 확정 (H1/H2/H3 reject). FRICTION.md 양방향 동기화.
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — D-E1 게이트 OPEN, 02-02 진입 unblocked
+Plan: 1 of 10 PASS (D-E1) / 9 plans pending (02-02..02-10)
+Status: D-E1 재검증 5/5 PASS. F-1/F-2 fix가 라이브에서 결정적 검증 (Criteria #2 readLogs synthesis text-delta + final 도달, audit DB error_envelope=null 재발 0건). Phase 2 plan 02-02 ~ 02-10 진행 가능.
+Last activity: 2026-05-07 — D-E1 재실행: Criteria #1 (RAG grounded) PASS, #2 (readLogs+synthesis) PASS, #3 (drift wire) PASS, #4 (audit) PASS. SMOKE-LOG-2.md commit. 이전 SMOKE-LOG-1.md는 보존 (FAIL→PASS 전환 증거 추적).
 
 Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
 Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
