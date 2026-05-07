@@ -29,8 +29,8 @@
 //   iterate(opts.abortSignal)이 signal 받아 break.
 //
 // APPLY-08 / D-10 lock (Plan 02-08 Task 3):
-//   Phase 2 흐름 LLM 모델 = COPILOT_MODEL_PROPOSE = claude-opus-4-6.
-//   실제 messages.create 호출은 agent/loop.ts:123,134이 owns — 그곳에서 PROPOSE로 전환.
+//   Phase 2 흐름 LLM 모델 = COPILOT_MODEL_PROPOSE (env default = opus-4-6, src/env.ts).
+//   실제 messages.create 호출은 agent/loop.ts:124,136이 owns — 그곳에서 PROPOSE로 전환.
 //   여기서는 env eval 1회 + 주석으로 lock 포인트 명시 (acceptance grep + 의도 표명).
 
 import { Hono } from "hono"
@@ -53,8 +53,8 @@ import { consumeApproval, type ApprovalDecision } from "../approval/store"
 
 const env = loadEnv()
 
-// APPLY-08 / D-10 lock — Phase 2 흐름 LLM 모델 = COPILOT_MODEL_PROPOSE (claude-opus-4-6).
-// 실제 messages.create 호출 site: agent/loop.ts:123, 134 (READONLY → PROPOSE 전환됨).
+// APPLY-08 / D-10 lock — Phase 2 흐름 LLM 모델 = COPILOT_MODEL_PROPOSE (env default opus-4-6).
+// 실제 messages.create 호출 site: agent/loop.ts:124, 136 (READONLY → PROPOSE 전환됨).
 // 여기 evaluation은 (a) env에 키가 없으면 boot 즉시 실패 (b) acceptance grep용 lock 포인트.
 const PHASE2_LLM_MODEL: string = env.COPILOT_MODEL_PROPOSE
 // 사용처: server.ts는 LLM 직접 호출 안 함 — agent/loop.ts에 위임.
