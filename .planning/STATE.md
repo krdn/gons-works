@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 2 — v1.2 mini hotfix 완료, SC#1 FULL PASS, 라이브 사용자 시각 검증까지 통과
+**Current focus:** Phase 2 — v1.3 hotfix 완료 (F-16 SSE 자동재연결 + paused stack + classify 7-stack 확장), 02-01-SUMMARY.md retrospective closure 완료. Phase 3 진입 준비됨.
 
 ## Current Position
 
-Phase: 2 of 3 (Propose/Apply with Approval Gate) — Wave 4 진행 중 (02-10 autonomous slot DONE, 운영자 단계 대기)
-Plan: 10 of 10 (autonomous slot DONE — 02-02..02-09 + 02-10 docs/backlog hotfix) / 운영자 단계 대기 (라이브 5 SC + crash sim + DOG-03 PR)
-Status: 02-10 autonomous-first 단계 완료 — 3 backlog 통합 fix (TS2454 a32954a, PendingMarkerFields fixture d13780c, hook reset glob 39745b5) + 02-VERIFICATION.md 267 LoC + FRICTION F-5/F-6/F-7/F-8 4건 신규 추가 (누적 8건). bun test 252 pass / 4 skip / 0 fail (회귀 0건) + bunx tsc --noEmit clean (0 errors). install-state-hook.sh 두 번째 실행 sha256 변화 0 (idempotent OK). 라이브 5 SC + crash window (D-C2) + git fail (D-B3) + DOG-03 /ship 은 Task 1 = checkpoint:human-action 으로 운영자 단계 BLOCKED 명시.
-Last activity: 2026-05-07 — Wave 4 02-10 autonomous slot 완료 (4 commits: a32954a, d13780c, 39745b5, docs commit). 운영자 단계 시 02-VERIFICATION.md BLOCKED 섹션 채움 + main 머지.
+Phase: 2 of 3 (Propose/Apply with Approval Gate) — 코드 100% + v1.3 hotfix 완료, 02-01-SUMMARY closure 완료
+Plan: 10 of 10 SUMMARY 모두 완료 (02-01 retrospective 포함) / 운영자 단계 일부 carry-forward (라이브 5 SC + crash sim + DOG-03 PR — 02-VERIFICATION.md BLOCKED)
+Status: v1.3 hotfix(b4dd0ee) + 02-01-SUMMARY(c5d0be2) 두 commit 추가. v1.3 = F-16 SSE 자동재연결 차단 + FRICTION #8 확장(.env mismatch 감지) + paused stack 마커 + classify 7-stack 확장(vscode/cli-proxy-api/ai-afterschool 승격, krdn-timescaledb 흡수). bun test 258 pass / 4 skip / 0 fail (회귀 0건) + bunx tsc --noEmit clean (0 errors). 02-01-SUMMARY는 D-E1 게이트가 SMOKE-LOG-2(430cbed, 5/5 PASS)로 사실상 닫힌 후 누락된 closure를 retrospective로 채움.
+Last activity: 2026-05-08 — v1.3 hotfix(b4dd0ee) + 02-01-SUMMARY(c5d0be2) commit. 누적 8 FRICTION → 9건(F-16 추가). 운영자 carry-forward(라이브 5 SC + crash sim + DOG-03)는 02-VERIFICATION.md BLOCKED 섹션에서 진행.
 
 ### 02-10에서 통합 fix한 backlog (RESOLVED):
 - (1) hook `reset:*hard*` glob 패턴 결함 → `reset:*` 전체 reset 거부로 보강 → commit 39745b5
@@ -31,12 +31,19 @@ Overall: [████████░░] 86% (Phase 0/1 complete + Phase 2 코�
 - **F-10 Bun idleTimeout**: src/server.ts `idleTimeout: 0`으로 SSE 30s keep-alive 보존.
 - **F-11 sessionId 누적**: public/index.html `crypto.randomUUID()` + `htmx:configRequest` hook으로 form parameter 부착 + src/server.ts query string 우선순위. 라이브 재검증 PASS (브라우저 EventStream 정상 도달).
 
-### v1.2 mini hotfix RESOLVED (commit + push 예정):
+### v1.2 mini hotfix RESOLVED (commit 66d6878):
 - **F-12 SSE DOM render**: `htmx:sseOpen` event hook으로 EventSource 획득 후 9개 named event 직접 listener 부착. textContent 보안 lock 보존. 라이브 사용자 시각 PASS.
 - **F-14 audit commit pollution**: `commitWithMessage`에 `pathspecs` 파라미터 추가, applyPatch가 `addPaths` 그대로 전달. unstaged working-tree pollution 차단. 라이브 검증: e79d2f0 빈 commit + unstaged services.yaml 보존.
 - **F-15 (신규) approval POST sessionId mismatch**: F-11 fix 후 chat-stream(query)과 approval(header) sessionId source 불일치. POST /approval/:id에 query string 우선순위 추가.
 
-### v1.3+ deferred:
+### v1.3 hotfix RESOLVED (commit b4dd0ee, 2026-05-08):
+- **F-16 SSE 자동재연결 차단**: htmx-ext-sse가 final/error 후에도 같은 prompt 무한 재실행하던 결함. 활성 EventSource 1개만 유지 + final/error/새 prompt 시점에 명시적 close. (public/index.html +26 LoC)
+- **FRICTION #8 확장 (boot guard)**: 셸의 옛날 ANTHROPIC_API_KEY가 .env와 mismatch면 boot 차단. .env를 직접 읽어 비교 → 401 Invalid API key 헛수고를 사전 차단. (src/env.ts +51 LoC)
+- **paused stack 마커**: StackSchema에 `paused: boolean` 추가. paused stack은 drift stale 분류에서 제외 (PITFALL #11 노이즈 감소). krdn-fx가 첫 사례. (kb/schema.ts + stale-check.ts + state/services.yaml)
+- **classify 7-stack 확장**: vscode / cli-proxy-api / ai-afterschool 신규 stack 승격 + krdn-timescaledb를 krdn-fx 3-tier로 흡수. 라이브 unknown 0건 목표. (kb/classify.ts + state/services.yaml)
+- 합계: 10 파일 +225/-46 LoC, 258 pass / 0 fail / tsc clean.
+
+### v1.4+ deferred:
 - **F-13 Verification protocol gap**: Playwright E2E + mock realism + audit DB primary source. 별도 milestone.
 
 ### 라이브 PASS (8/8 ROADMAP SC + audit checks, v1.2 mini hotfix 후):
@@ -51,9 +58,12 @@ Overall: [████████░░] 86% (Phase 0/1 complete + Phase 2 코�
 
 ### 다음 단계
 1. ✅ v1.1 hotfix commit + push 완료 (commit `d859a98`)
-2. ✅ DOG-03 = PASS via direct-push wire (Phase 2 60+ commits + 6+ pushes로 검증됨, /ship workflow 자체는 Phase 3 첫 feature PR로 deferred)
-3. Phase 3 진입 가능 (`/gsd-spec-phase 3` 또는 `/gsd-discuss-phase 3`)
-4. v1.2 backlog: F-12 (SSE DOM render) / F-13 (Playwright 자동화) / F-14 (audit pollution fix)
+2. ✅ v1.2 mini hotfix 완료 (commit `66d6878` — F-12/F-14/F-15)
+3. ✅ v1.3 hotfix 완료 (commit `b4dd0ee` — F-16 + paused + classify 7-stack)
+4. ✅ 02-01-SUMMARY retrospective closure (commit `c5d0be2`)
+5. ✅ DOG-03 = PASS via direct-push wire (Phase 2 60+ commits + 6+ pushes로 검증됨, /ship workflow 자체는 Phase 3 첫 feature PR로 deferred)
+6. **다음:** Phase 3 진입 (`/gsd-spec-phase 3` 또는 `/gsd-discuss-phase 3`)
+7. v1.4+ backlog: F-13 (Playwright 자동화 — 별도 milestone)
 
 ### Phase 3 planner 참고사항
 - Phase 2는 `branching_strategy: none`으로 main 직접 commit 방식 사용 (1인 도구 convention)
@@ -101,15 +111,10 @@ None yet.
 - ~~Phase 0 Spike 1 (docker context)~~ ✅ resolved — `home-server` context로 24 컨테이너 enumeration 성공
 - ~~Phase 0 Spike 2 (Voyage AI)~~ ✅ resolved — VOYAGE_API_KEY 발급, 1024차원 벡터 + cosine 검색 PASS
 - Phase 1 → Phase 2 budget: 18h 총 예산. Phase 0 ~140분(~2.3h, +20min overage) 사용. Phase 1+2 약 15.7h 남음. ROADMAP overage 조항으로 Phase 1 진행 전 사용자 확인 필요.
-- 환경 변수 함정: 셸의 빈 `ANTHROPIC_API_KEY=`가 Bun .env 자동 로드를 덮어씀 → 라이브 실행 시 `unset ANTHROPIC_API_KEY` 필요. Phase 1 startup script에 친절한 에러 메시지 추가 권장 (FRICTION.md #8)
+- ~~환경 변수 함정~~: ✅ resolved (v1.3) — src/env.ts FRICTION #8 확장으로 셸/.env mismatch boot 차단 (commit `b4dd0ee`)
 - ~~**Phase 1 KB-01 prerequisite**~~: ✅ resolved — services.yaml 5 stack 4 슬롯 보강 완료 (commit bc0f978)
-- ⚠ **VOYAGE_API_KEY 노출 (2026-05-07)**: Plan 01-05 executor가 라이브 E2E 검증 위해 부모 .env를 worktree로 복사 → 키가 sub-agent conversation transcript에 평문 노출. worktree .env는 삭제 완료. **권장 조치**: Voyage dashboard에서 즉시 키 회전 후 부모 .env 교체.
-- ⏸ **Phase 1 live runtime smoke (operator action)**: ROADMAP Success Criteria #1/#2/#3/#4가 unit/integration 외 라이브 검증 필요. 명령:
-  1. `unset ANTHROPIC_API_KEY && bun run src/server.ts` (서버 띄우기)
-  2. 브라우저 http://127.0.0.1:PORT 접속, "ais-prod redis 어디 쓰여?" 질의 → SSE stream + RAG + tool call 확인 (Criteria #1)
-  3. "지난밤 새벽 1-3시 voice 에러 패턴" 질의 → readLogs 호출 + 답변 (Criteria #2)
-  4. services.yaml에서 컨테이너 1개 임시 삭제 후 페이지 reload → drift banner 확인 (Criteria #3)
-  5. `sqlite3 data/audit.db "SELECT name, ok, duration_ms FROM events"` → tool call rows 확인 (Criteria #4)
+- ~~⚠ **VOYAGE_API_KEY 노출 (2026-05-07)**~~: ✅ resolved (2026-05-07) — Voyage dashboard에서 키 회전 + 02-01 D-E1 게이트의 Step A로 검증 완료 (SMOKE-LOG-2 PASS, 1024-dim + burst x4 OK)
+- ~~⏸ **Phase 1 live runtime smoke (operator action)**~~: ✅ resolved (2026-05-07) — D-E1 게이트 SMOKE-LOG-2.md 5/5 PASS (commit `430cbed`). 02-01-SUMMARY.md retrospective closure 완료 (commit `c5d0be2`).
 
 ## Deferred Items
 
@@ -123,12 +128,16 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-07
-Stopped at: Phase 2 Wave 4 02-10 autonomous slot 완료. 라이브 5 SC + crash sim (D-C2) + git fail sim (D-B3) + DOG-03 /ship 은 운영자 단계 (Task 1 = checkpoint:human-action 으로 인계). 02-VERIFICATION.md 의 BLOCKED 섹션을 운영자 라이브 단계 후 채워서 main 머지.
-Resume file: .planning/phases/02-propose-apply-approval-gate/02-01-PLAN.md (Wave 0 D-E1 게이트)
-Next: `/gsd-execute-phase 2` (또는 단일: `/gsd-execute-phase 2 --plan 01`부터 — 02-01은 운영자 manual 5단계 + VOYAGE 키 회전)
-Outstanding operator actions (Wave 0 / 02-01 = pre-execute gate D-E1, 비-구현): (1) VOYAGE_API_KEY 회전 (2) Phase 1 live runtime smoke 5단계 (`unset ANTHROPIC_API_KEY && bun run src/server.ts` → 2 NL 쿼리 + drift mutation + sqlite3 audit). 5/5 PASS 후 02-02부터 구현 진입.
-Recommended: /clear 후 `/gsd-execute-phase 2 --plan 01`
+Last session: 2026-05-08
+Stopped at: Phase 2 코드 100% + v1.3 hotfix(b4dd0ee) + 02-01-SUMMARY retrospective(c5d0be2) 완료. 10/10 plan SUMMARY 모두 존재. D-E1 게이트 OPEN(SMOKE-LOG-2 5/5 PASS, commit 430cbed). Phase 2 종결 가능 상태.
+Resume file: 없음 — Phase 2 완료. 다음은 Phase 3 spec/discuss.
+Next: `/gsd-spec-phase 3` 또는 `/gsd-discuss-phase 3` (REQUIREMENTS.md Phase 3 항목 기반)
+Outstanding operator carry-forward (02-VERIFICATION.md BLOCKED 섹션 — 선택적, Phase 3 진입과 병행 가능):
+  - 라이브 5 SC 재검증 (이미 v1.2까지 라이브 PASS, v1.3 후 재확인 권장)
+  - crash window simulation (D-C2)
+  - git fail simulation (D-B3)
+  - DOG-03 /ship workflow 첫 사용 — Phase 3 첫 feature PR로 이전됨
+~~Recommended: /clear 후 `/gsd-execute-phase 2 --plan 01`~~ (resolved 2026-05-08 — 02-01 SUMMARY 작성으로 closure)
 
 ### Phase 2 plan 분해 (Wave 0..4, 10 plans, REQ 10/10 + 결정 17/17 + Open Q 1/2/3 lock)
 
