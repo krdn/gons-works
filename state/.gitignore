@@ -1,4 +1,6 @@
 # state/ runtime artifacts — D-C1 lock
-# .pending/ marker 디렉토리는 02-06 applyPatch가 mkdir -p로 신설하는 runtime state.
-# git에 포함하지 않는다.
-/.pending/
+# .pending/ marker 디렉토리는 02-06 applyPatch 진입 시점에 존재해야 한다 (D-C4
+# marker reject + boot detect 모두 디렉토리 존재가 전제). 빈 .gitkeep으로 디렉토리만
+# 추적하고 marker JSON 파일들은 모두 무시한다.
+/.pending/*
+!/.pending/.gitkeep
