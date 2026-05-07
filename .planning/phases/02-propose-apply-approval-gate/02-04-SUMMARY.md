@@ -171,7 +171,9 @@ PLAN.md Task 2 line 203의 commit message에는 "5 stacks via SSH cat"으로 적
 
 ### Issue 1: PROD 침해 사고 (가장 큰 마찰)
 
-위 Deviation #2가 정확한 기록. 핵심: **env-only context 설정은 신뢰 불가, explicit positional 인자 필수**. 본 plan이 발견한 Phase 2 운영 안전망의 가장 critical lesson — applyPatch (02-06)는 SSH command를 직접 호출하지만, listContainers / readCompose / readLogs 같은 read-only docker 호출도 모두 explicit `--context home-server` (or `default` for tests) 패턴을 따라야 함. Phase 1 코드 재점검 권고 (별도 sync proposal 검토 가능 — 본 plan 범위 외).
+위 Deviation #2가 정확한 기록. 핵심: **env-only context 설정은 신뢰 불가, explicit positional 인자 필수**. 본 plan이 발견한 Phase 2 운영 안전망의 가장 critical lesson — applyPatch (02-06)는 SSH command를 직접 호출하지만, listContainers / readCompose / readLogs 같은 read-only docker 호출도 모두 explicit `--context home-server` (or `default` for tests) 패턴을 따라야 함.
+
+**Phase 1 코드 재점검 결과 (advisor 권고 후 즉시 수행):** `rg "DOCKER_CONTEXT|docker --context|docker compose|docker run" tools/ kb/`로 점검. 결과: Phase 1의 모든 docker 호출은 이미 안전 — `tools/listContainers.ts:63`, `tools/readLogs.ts:84-88`, `kb/stale-check.ts:119`, `scripts/draft-services-yaml.ts:50` 모두 `Bun.$\`docker --context ${env.DOCKER_CONTEXT} ...\`` 패턴으로 explicit `--context` positional을 사용 중 (PITFALL #8 prevention 명시). 본 plan helper는 처음 작성 시 env-only 가정으로 일시 lapse했고 GREEN commit에서 동일 패턴으로 수정 완료. **Phase 1 tools는 추가 작업 불필요.**
 
 ### Issue 2: Worktree path confusion (소규모, 자체 해결)
 
