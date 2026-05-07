@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** AI가 내 운영 환경의 도메인 지식을 알고 있고, 모든 운영 액션이 git-versioned audit trail이 된다.
-**Current focus:** Phase 2 — Propose/Apply with Approval Gate (Wave 1/2/3 완료, Wave 4 시작 — 02-10 verification)
+**Current focus:** Phase 2 — Propose/Apply with Approval Gate (코드 100% 완료, 운영자 라이브 검증 5건 BLOCKED)
 
 ## Current Position
 
@@ -19,8 +19,22 @@ Last activity: 2026-05-07 — Wave 4 02-10 autonomous slot 완료 (4 commits: a3
 - (2) tools/_envelope.ts:85,87 TS2454 (Phase 1 carry-forward) → commit a32954a
 - (3) src/server.test.ts:416 PendingMarkerFields type narrowing (Wave 3 통합 후 발견) → commit d13780c
 
-Progress: [██████████] 100% (Phase 1 — 9/9 plans executed)
-Overall: [██████░░░░] 66% (2/3 phases — Phase 0+1 complete)
+Progress: [██████████] 100% Phase 1 (9/9) + Phase 2 코드 100% (10/10 autonomous slot, 운영자 5건 BLOCKED)
+Overall: [████████░░] 86% (Phase 0/1 complete + Phase 2 코드 완료, 운영자 검증 대기 / Phase 3 미시작)
+
+## Outstanding Operator Actions (Phase 2 종료 게이트)
+
+운영자가 라이브 환경에서 직접 실행 후 02-VERIFICATION.md의 BLOCKED 섹션을 채워야 Phase 2 closed. 자세한 절차는 .planning/phases/02-propose-apply-approval-gate/02-VERIFICATION.md "Outstanding Items" 섹션 참조:
+
+1. **ROADMAP SC 5/5 라이브 검증** — 브라우저로 mutating 질의 → 5-key 카드 → y 키 → applied 흐름 + git log 확인
+2. **Crash window simulation (D-C2)** — applyPatch 도중 `kill -9 $(pgrep -f 'bun run src/server.ts')` → server restart → drift event a/b/c
+3. **Git commit fail simulation (D-B3)** — 메인 repo `.git/hooks/pre-commit`을 force-fail로 임시 변경 → docker→git 흐름 → rolled-back 검증 → hook 원복
+4. **DOG-03 PR 생성** — `/ship` 또는 manual `gh pr create` → URL 02-VERIFICATION.md에 기록
+5. **state/ apply commit grep 갱신** — 라이브 E2E 후 `git log -G "Nonce: " -- state/` 결과 02-VERIFICATION.md AUDIT-02에 기록
+
+운영자 단계 완료 후 commit: `docs(02): 10 — Phase 2 verification operator 단계 완료 (5 SC + crash + git fail + DOG-03 PR)`
+
+Phase 3 (3-tier docs + 운영 검증)은 위 5건 PASS 후 `/gsd-spec-phase 3` 또는 `/gsd-discuss-phase 3`로 진입 가능.
 
 ## Performance Metrics
 
