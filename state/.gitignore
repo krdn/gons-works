@@ -1,0 +1,4 @@
+# state/ runtime artifacts — D-C1 lock
+# .pending/ marker 디렉토리는 02-06 applyPatch가 mkdir -p로 신설하는 runtime state.
+# git에 포함하지 않는다.
+/.pending/
