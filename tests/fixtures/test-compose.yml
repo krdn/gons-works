@@ -1,0 +1,24 @@
+# tests/fixtures/test-compose.yml
+# Phase 2 D-A3: 192.168.0.8 로컬 alpine 더미 stack
+# PROD 절대 조작 금지 원칙 — applyPatch 2PC E2E 검증은 이 fixture 위에서만 수행
+#
+# 구성: alpine:3 더미 컨테이너 2개 (test-svc-a / test-svc-b).
+#   - 라이프사이클은 tests/setup/docker-context.ts의 switchToLocalContext /
+#     restoreContext가 docker compose up -d / down --volumes로 관리한다.
+#   - container_name 명시 — `gons-test-` prefix로 다른 컨테이너와 격리.
+#   - DOCKER_CONTEXT="default"(로컬, 192.168.0.8)로 일시 전환하여 실행.
+#   - applyPatch 2PC 모든 시나리오(success / docker fail rollback /
+#     git commit fail rollback / crash window)를 이 fixture로 재현 가능.
+
+services:
+  test-svc-a:
+    image: alpine:3
+    container_name: gons-test-svc-a
+    command: ["sh", "-c", "while true; do sleep 30; done"]
+    restart: unless-stopped
+
+  test-svc-b:
+    image: alpine:3
+    container_name: gons-test-svc-b
+    command: ["sh", "-c", "while true; do sleep 30; done"]
+    restart: unless-stopped
